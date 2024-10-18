@@ -4,11 +4,21 @@ from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from path_tmpl_worker.db.base import Base
 
 CType = Literal["document", "folder"]
+
+
+class DocumentTypeCustomField(Base):
+    __tablename__ = "document_type_custom_field"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_type_id: Mapped[UUID] = mapped_column(ForeignKey("document_types.id"))
+
+    custom_field_id: Mapped[UUID] = mapped_column(
+        ForeignKey("custom_fields.id"),
+    )
 
 
 class Node(Base):
@@ -57,3 +67,45 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(
         insert_default=func.now(), onupdate=func.now()
     )
+
+
+class DocumentType(Base):
+    __tablename__ = "document_types"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    path_template: Mapped[str]
+    custom_fields: Mapped[list["CustomField"]] = relationship(  #  noqa: F821
+        secondary="document_type_custom_field"
+    )
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+
+class CustomField(Base):
+    __tablename__ = "custom_fields"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    type: Mapped[str]
+    extra_data: Mapped[str] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+
+class CustomFieldValue(Base):
+    __tablename__ = "custom_field_values"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core_document.basetreenode_ptr_id")
+    )
+    field_id: Mapped[UUID] = mapped_column(ForeignKey("custom_fields.id"))
+    value_text: Mapped[str]
+    value_boolean: Mapped[bool]
+    value_date: Mapped[datetime]
+    value_int: Mapped[int]
+    value_float: Mapped[float]
+    value_monetary: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+    def __repr__(self):
+        return f"CustomFieldValue(ID={self.id})"
