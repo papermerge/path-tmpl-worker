@@ -12,7 +12,8 @@ sqlalchemy = "^2.0.36"
 pydantic-settings = "^2.6.0"
 pydantic = "^2.9.2"
 
-
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
 
 [build-system]
 requires = ["poetry-core"]
