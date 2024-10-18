@@ -1,0 +1,17 @@
+*.pid
+.idea/
+.env
+.envrc
+build/
+.eggs/
+.venv
+*.pyc
+__pycache__
+*.log
+*.sqlite3
+*.db
+*.png~
+dist
+_build
+celerybeat-schedule
+.vscode
