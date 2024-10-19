@@ -5,6 +5,7 @@ from typing import TypeAlias
 
 from pydantic import BaseModel, ConfigDict
 
+
 class CustomFieldType(str, Enum):
     text = "text"
     date = "date"
@@ -30,6 +31,9 @@ CFValueType: TypeAlias = str | int | date | bool | float | None
 class CField(BaseModel):
     name: str
     value: CFValueType = None
+
+    def __hash__(self):
+        return hash(f"{self.name}-{self.value}")
 
 
 class GetCFItem:

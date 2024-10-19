@@ -2,15 +2,19 @@ import uuid
 from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Iterable
 
 from path_tmpl_worker import models
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT
 
-def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CustomField]:
+
+def get_doc(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
     stmt = """
         SELECT
+            doc.basetreenode_ptr_id,
+            doc.title,
             cf.cf_name,
+            cf.cf_type,
             CASE
                 WHEN(cf.cf_type = 'monetary') THEN cfv.value_monetary
                 WHEN(cf.cf_type = 'text') THEN cfv.value_text
@@ -37,21 +41,25 @@ def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CustomF
     WHERE
         doc.basetreenode_ptr_id = :document_id
     """
-    result = []
+    custom_fields = []
     str_doc_id = str(document_id).replace("-", "")
+    doc_title = ""
     for row in session.execute(text(stmt), {"document_id": str_doc_id}):
         if row.cf_type == "date":
             value = str2date(row.cf_value)
         else:
             value = row.cf_value
-
-        result.append(
-            models.CustomField(
+        doc_title = row.title
+        custom_fields.append(
+            models.CField(
                 name=row.cf_name,
                 value=value,
             )
         )
-    return result
+
+    return models.DocumentContext(
+        title=doc_title, id=document_id, custom_fields=custom_fields
+    )
 
 
 def str2date(value: str | None) -> Optional[datetime.date]:
