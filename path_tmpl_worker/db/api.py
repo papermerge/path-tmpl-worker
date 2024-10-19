@@ -1,20 +1,23 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy import text, select, insert, update
 from sqlalchemy.orm import Session
-from typing import Optional, Iterable
+from typing import Optional
 
 from path_tmpl_worker import models
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT
+from path_tmpl_worker.db.orm import Document, CustomField, CustomFieldValue
 
 
-def get_doc(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
-    stmt = """
+def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
+    stmt = """ 
         SELECT
-            doc.basetreenode_ptr_id,
-            doc.title,
+            doc.basetreenode_ptr_id AS doc_id,
+            doc.document_type_id,
+            cf.cf_id AS cf_id,
             cf.cf_name,
-            cf.cf_type,
+            cf.cf_type AS cf_type,
+            cfv.id AS cfv_id,
             CASE
                 WHEN(cf.cf_type = 'monetary') THEN cfv.value_monetary
                 WHEN(cf.cf_type = 'text') THEN cfv.value_text
@@ -43,22 +46,34 @@ def get_doc(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
     """
     custom_fields = []
     str_doc_id = str(document_id).replace("-", "")
-    doc_title = ""
     for row in session.execute(text(stmt), {"document_id": str_doc_id}):
         if row.cf_type == "date":
             value = str2date(row.cf_value)
         else:
             value = row.cf_value
-        doc_title = row.title
         custom_fields.append(
-            models.CField(
+            models.CFV(
+                document_id=row.doc_id,
+                document_type_id=row.document_type_id,
+                custom_field_id=row.cf_id,
                 name=row.cf_name,
+                type=row.cf_type,
+                custom_field_value_id=row.cfv_id,
                 value=value,
             )
         )
 
+    return custom_fields
+
+
+def get_doc(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
+    cf = get_doc_cfv(session, document_id)
+    custom_fields = [models.CField(name=i.name, value=i.value) for i in cf]
+    stmt = select(Document).where(Document.id == document_id)
+    doc = session.execute(stmt).scalars().one()
+
     return models.DocumentContext(
-        title=doc_title, id=document_id, custom_fields=custom_fields
+        title=doc.title, id=document_id, custom_fields=custom_fields
     )
 
 
@@ -82,3 +97,59 @@ def str2date(value: str | None) -> Optional[datetime.date]:
         value[:DATE_LEN],
         INCOMING_DATE_FORMAT,
     ).date()
+
+
+def update_doc_cfv(
+    session: Session,
+    document_id: uuid.UUID,
+    custom_fields: dict,
+):
+    """
+    Update document's custom field values
+    """
+    items = get_doc_cfv(session, document_id=document_id)
+    insert_values = []
+    update_values = []
+
+    stmt = (
+        select(CustomField.name)
+        .select_from(CustomFieldValue)
+        .join(CustomField)
+        .where(CustomFieldValue.document_id == document_id)
+    )
+    existing_cf_name = [row[0] for row in session.execute(stmt).all()]
+
+    for item in items:
+        if item.name not in custom_fields.keys():
+            continue
+
+        if item.name not in existing_cf_name:
+            # prepare insert values
+            v = dict(
+                id=uuid.uuid4(),
+                document_id=item.document_id,
+                field_id=item.custom_field_id,
+            )
+            if item.type.value == "date":
+                v[f"value_{item.type.value}"] = str2date(custom_fields[item.name])
+            else:
+                v[f"value_{item.type.value}"] = custom_fields[item.name]
+            insert_values.append(v)
+        else:
+            # prepare update values
+            v = dict(id=item.custom_field_value_id)
+            if item.type == "date":
+                v[f"value_{item.type.value}"] = str2date(custom_fields[item.name])
+            else:
+                v[f"value_{item.type.value}"] = custom_fields[item.name]
+            update_values.append(v)
+
+    if len(insert_values) > 0:
+        session.execute(insert(CustomFieldValue), insert_values)
+
+    if len(update_values) > 0:
+        session.execute(update(CustomFieldValue), update_values)
+
+    session.commit()
+
+    return items

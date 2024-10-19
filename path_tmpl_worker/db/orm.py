@@ -24,9 +24,7 @@ class DocumentTypeCustomField(Base):
 class Node(Base):
     __tablename__ = "core_basetreenode"
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, insert_default=uuid.uuid4()
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4())
     title: Mapped[str] = mapped_column(String(200))
     ctype: Mapped[CType] = mapped_column(insert_default="document")
     user_id: Mapped[UUID]
@@ -66,7 +64,7 @@ class Document(Base):
         primaryjoin="DocumentType.id == Document.document_type_id",
     )
     document_type_id: Mapped[UUID] = mapped_column(ForeignKey("document_types.id"))
-    created_at: Mapped[datetime]= mapped_column(insert_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         insert_default=func.now(), onupdate=func.now()
     )
@@ -102,12 +100,12 @@ class CustomFieldValue(Base):
         ForeignKey("core_document.basetreenode_ptr_id")
     )
     field_id: Mapped[UUID] = mapped_column(ForeignKey("custom_fields.id"))
-    value_text: Mapped[str]
-    value_boolean: Mapped[bool]
-    value_date: Mapped[datetime]
-    value_int: Mapped[int]
-    value_float: Mapped[float]
-    value_monetary: Mapped[str]
+    value_text: Mapped[str] = mapped_column(nullable=True)
+    value_boolean: Mapped[bool] = mapped_column(nullable=True)
+    value_date: Mapped[datetime] = mapped_column(nullable=True)
+    value_int: Mapped[int] = mapped_column(nullable=True)
+    value_float: Mapped[float] = mapped_column(nullable=True)
+    value_monetary: Mapped[float] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
     def __repr__(self):

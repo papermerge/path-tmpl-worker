@@ -77,3 +77,21 @@ class DocumentType(BaseModel):
 
     # Config
     model_config = ConfigDict(from_attributes=True)
+
+
+class CFV(BaseModel):
+    # custom field value
+    # `core_documents.id`
+    document_id: uuid.UUID
+    # `core_documents.document_type_id`
+    document_type_id: uuid.UUID
+    # `custom_fields.id`
+    custom_field_id: uuid.UUID
+    # `custom_fields.name`
+    name: str
+    # `custom_fields.type`
+    type: CustomFieldType
+    # `custom_fields.extra_data`
+    custom_field_value_id: uuid.UUID | None = None
+    # `custom_field_values.value_text` or `custom_field_values.value_int` or ...
+    value: CFValueType = None

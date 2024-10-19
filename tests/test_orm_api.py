@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from path_tmpl_worker.db import get_doc
+from path_tmpl_worker.db import get_doc, update_doc_cfv
 from path_tmpl_worker.models import CField
 
 
@@ -35,14 +35,14 @@ def test_get_doc_non_emtpy_cf(db_session: Session, make_receipt):
         title="invoice.pdf", path_template="/home/Receipts/{{document.id}}.pdf"
     )
 
-    doc = get_doc(db_session, document_id=receipt.id)
+    # insert some non-empty values
+    custom_fields = {"Total": 10.99, "Shop": "rewe"}
+    update_doc_cfv(db_session, document_id=receipt.id, custom_fields=custom_fields)
 
-    expected_cf = {
-        CField(name="Shop", value=None),
-        CField(name="Total", value=None),
-        CField(name="EffectiveDate", value=None),
-    }
+    doc = get_doc(db_session, document_id=receipt.id)
 
     assert "invoice.pdf" == doc.title
     assert receipt.id == doc.id
-    assert expected_cf == set(doc.custom_fields)
+    assert doc.cf["Shop"] == "rewe"
+    assert doc.cf["EffectiveDate"] is None
+    assert doc.cf["Total"] == 10.99
