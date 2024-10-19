@@ -2,7 +2,7 @@ import uuid
 from datetime import date as Date
 
 from path_tmpl_worker import get_evaluated_path
-from path_tmpl_worker.models import CustomField
+from path_tmpl_worker.models import CField
 
 
 def test_get_evaluated_path_title():
@@ -35,9 +35,9 @@ def test_get_evaluated_path_with_all_cf_defined():
     {% endif %}
     """
     custom_fields = [
-        CustomField(name="Shop", value="lidl"),
-        CustomField(name="Total", value=10.34),
-        CustomField(name="Effective Date", value=Date(2024, 12, 23))
+        CField(name="Shop", value="lidl"),
+        CField(name="Total", value=10.34),
+        CField(name="Effective Date", value=Date(2024, 12, 23))
     ]
     id = uuid.uuid4()
     ev_path = get_evaluated_path(
@@ -58,9 +58,9 @@ def test_get_evaluated_path_with_some_cf_missing():
     {% endif %}
     """
     custom_fields = [
-        CustomField(name="Shop", value=None),  # !!! missing !!!
-        CustomField(name="Total", value=10.34),
-        CustomField(name="Effective Date", value=Date(2024, 12, 23))
+        CField(name="Shop", value=None),  # !!! missing !!!
+        CField(name="Total", value=10.34),
+        CField(name="Effective Date", value=Date(2024, 12, 23))
     ]
     id = uuid.uuid4()
     ev_path = get_evaluated_path(
@@ -81,8 +81,8 @@ def test_get_evaluated_path_with_datefmt():
     {% endif %}
     """
     custom_fields = [
-        CustomField(name="Total", value=245.02),
-        CustomField(name="Effective Date", value=Date(2024, 12, 23))
+        CField(name="Total", value=245.02),
+        CField(name="Effective Date", value=Date(2024, 12, 23))
     ]
     id = uuid.uuid4()
     ev_path = get_evaluated_path(

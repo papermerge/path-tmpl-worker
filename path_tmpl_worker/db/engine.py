@@ -14,14 +14,7 @@ def get_engine(url: str | None = None):
     else:
         SQLALCHEMY_DATABASE_URL = url
 
-    connect_args = {}
-
-    if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-        # sqlite specific connection args
-        connect_args = {"check_same_thread": False}
-
     return create_engine(
         SQLALCHEMY_DATABASE_URL,
-        connect_args=connect_args,
         poolclass=NullPool,
     )

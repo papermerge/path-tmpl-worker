@@ -1,20 +1,39 @@
 import uuid
+from enum import Enum
 from datetime import date
 from typing import TypeAlias
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+class CustomFieldType(str, Enum):
+    text = "text"
+    date = "date"
+    boolean = "boolean"
+    int = "int"
+    float = "float"
+    monetary = "monetary"
+
+
+class CustomField(BaseModel):
+    id: uuid.UUID
+    name: str
+    type: CustomFieldType
+    extra_data: str | None
+
+    # Config
+    model_config = ConfigDict(from_attributes=True)
 
 
 CFValueType: TypeAlias = str | int | date | bool | float | None
 
 
-class CustomField(BaseModel):
+class CField(BaseModel):
     name: str
     value: CFValueType = None
 
 
 class GetCFItem:
-    def __init__(self, custom_fields: list[CustomField]):
+    def __init__(self, custom_fields: list[CField]):
         self.custom_fields = custom_fields
 
     def __getitem__(self, name: str):
@@ -28,7 +47,7 @@ class GetCFItem:
 class DocumentContext(BaseModel):
     id: uuid.UUID
     title: str
-    custom_fields: list[CustomField] = []
+    custom_fields: list[CField] = []
 
     @property
     def cf(self) -> GetCFItem:
@@ -44,3 +63,13 @@ class DocumentContext(BaseModel):
                 return False
 
         return True
+
+
+class DocumentType(BaseModel):
+    id: uuid.UUID
+    name: str
+    path_template: str | None = None
+    custom_fields: list[CustomField]
+
+    # Config
+    model_config = ConfigDict(from_attributes=True)
