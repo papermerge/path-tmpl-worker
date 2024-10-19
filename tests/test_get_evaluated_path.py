@@ -70,3 +70,25 @@ def test_get_evaluated_path_with_some_cf_missing():
         path_template=path_tmpl
     )
     assert ev_path == f"/home/Groceries/{id}"
+
+
+def test_get_evaluated_path_with_datefmt():
+    path_tmpl = """
+    {% if document.cf['Effective Date'] %}
+        /home/Tax/{{ document.cf['Effective Date'] | datefmt("%Y") }}.pdf
+    {% else %}
+        /home/Tax/{{ document.id }}.pdf
+    {% endif %}
+    """
+    custom_fields = [
+        CustomField(name="Total", value=245.02),
+        CustomField(name="Effective Date", value=Date(2024, 12, 23))
+    ]
+    id = uuid.uuid4()
+    ev_path = get_evaluated_path(
+        title="coco",
+        id=id,
+        custom_fields=custom_fields,
+        path_template=path_tmpl
+    )
+    assert ev_path == "/home/Tax/2024.pdf"
