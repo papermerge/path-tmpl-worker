@@ -1,29 +1,25 @@
 import uuid
 from datetime import date as Date
 
-from path_tmpl_worker import get_evaluated_path
-from path_tmpl_worker.models import CField
+from path_tmpl_worker.template import get_evaluated_path
+from path_tmpl_worker.models import CField, DocumentContext
 
 
 def test_get_evaluated_path_title():
-    ev_path = get_evaluated_path(
-        title="coco",
-        id=uuid.uuid4(),
-        path_template="/home/{{ document.title }}"
-    )
+    doc = DocumentContext(title="coco", id=uuid.uuid4())
+    ev_path = get_evaluated_path(doc, path_template="/home/{{ document.title }}")
 
     assert ev_path == "/home/coco"
 
 
 def test_get_evaluated_path_id():
-    id = uuid.uuid4()
+    doc = DocumentContext(title="coco", id=uuid.uuid4())
     ev_path = get_evaluated_path(
-        title="coco",
-        id=id,
-        path_template="/home/{{ document.title }}-{{ document.id }}"
+        doc,
+        path_template="/home/{{ document.title }}-{{ document.id }}",
     )
 
-    assert ev_path == f"/home/coco-{id}"
+    assert ev_path == f"/home/coco-{doc.id}"
 
 
 def test_get_evaluated_path_with_all_cf_defined():
@@ -34,18 +30,14 @@ def test_get_evaluated_path_with_all_cf_defined():
         /home/Groceries/{{ document.id }}
     {% endif %}
     """
+
     custom_fields = [
         CField(name="Shop", value="lidl"),
         CField(name="Total", value=10.34),
-        CField(name="Effective Date", value=Date(2024, 12, 23))
+        CField(name="Effective Date", value=Date(2024, 12, 23)),
     ]
-    id = uuid.uuid4()
-    ev_path = get_evaluated_path(
-        title="coco",
-        id=id,
-        custom_fields=custom_fields,
-        path_template=path_tmpl
-    )
+    doc = DocumentContext(id=uuid.uuid4(), title="coco", custom_fields=custom_fields)
+    ev_path = get_evaluated_path(doc, path_template=path_tmpl)
     assert ev_path == f"/home/Groceries/lidl-2024-12-23-10.34"
 
 
@@ -60,16 +52,12 @@ def test_get_evaluated_path_with_some_cf_missing():
     custom_fields = [
         CField(name="Shop", value=None),  # !!! missing !!!
         CField(name="Total", value=10.34),
-        CField(name="Effective Date", value=Date(2024, 12, 23))
+        CField(name="Effective Date", value=Date(2024, 12, 23)),
     ]
-    id = uuid.uuid4()
-    ev_path = get_evaluated_path(
-        title="coco",
-        id=id,
-        custom_fields=custom_fields,
-        path_template=path_tmpl
-    )
-    assert ev_path == f"/home/Groceries/{id}"
+    doc = DocumentContext(id=uuid.uuid4(), title="coco", custom_fields=custom_fields)
+
+    ev_path = get_evaluated_path(doc, path_template=path_tmpl)
+    assert ev_path == f"/home/Groceries/{doc.id}"
 
 
 def test_get_evaluated_path_with_datefmt():
@@ -82,13 +70,13 @@ def test_get_evaluated_path_with_datefmt():
     """
     custom_fields = [
         CField(name="Total", value=245.02),
-        CField(name="Effective Date", value=Date(2024, 12, 23))
+        CField(name="Effective Date", value=Date(2024, 12, 23)),
     ]
-    id = uuid.uuid4()
-    ev_path = get_evaluated_path(
+    doc = DocumentContext(
+        id=uuid.uuid4(),
         title="coco",
-        id=id,
         custom_fields=custom_fields,
-        path_template=path_tmpl
     )
+
+    ev_path = get_evaluated_path(doc, path_template=path_tmpl)
     assert ev_path == "/home/Tax/2024.pdf"

@@ -1,3 +1,3 @@
-from .api import get_evaluated_path
+from .api import move_document
 
-__all__ = ['get_evaluated_path']
+__all__ = ["move_document"]

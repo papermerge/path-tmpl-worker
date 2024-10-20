@@ -16,9 +16,7 @@ class DocumentTypeCustomField(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     document_type_id: Mapped[UUID] = mapped_column(ForeignKey("document_types.id"))
 
-    custom_field_id: Mapped[UUID] = mapped_column(
-        ForeignKey("custom_fields.id"),
-    )
+    custom_field_id: Mapped[UUID] = mapped_column(ForeignKey("custom_fields.id"))
 
 
 class Node(Base):
@@ -53,7 +51,7 @@ class Folder(Node):
     }
 
 
-class Document(Base):
+class Document(Node):
     __tablename__ = "core_document"
 
     id: Mapped[UUID] = mapped_column(
@@ -67,7 +65,9 @@ class Document(Base):
     document_type: Mapped["DocumentType"] = relationship(  # noqa: F821
         primaryjoin="DocumentType.id == Document.document_type_id",
     )
-    document_type_id: Mapped[UUID] = mapped_column(ForeignKey("document_types.id"))
+    document_type_id: Mapped[UUID] = mapped_column(
+        ForeignKey("document_types.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         insert_default=func.now(), onupdate=func.now()
@@ -79,7 +79,7 @@ class DocumentType(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     name: Mapped[str]
-    path_template: Mapped[str]
+    path_template: Mapped[str] = mapped_column(nullable=True)
     custom_fields: Mapped[list["CustomField"]] = relationship(  #  noqa: F821
         secondary="document_type_custom_field"
     )

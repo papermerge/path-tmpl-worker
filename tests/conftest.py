@@ -63,9 +63,10 @@ def make_document_type_groceries(db_session: Session, make_custom_field):
 
 
 @pytest.fixture()
-def make_receipt(db_session, make_document_type_groceries):
+def make_receipt(db_session, make_user, make_document_type_groceries):
 
     def _maker(title: str, path_template: str | None = None):
+        user = make_user("john")
         dtype = make_document_type_groceries(
             title="Groceries", path_template=path_template
         )
@@ -75,7 +76,24 @@ def make_receipt(db_session, make_document_type_groceries):
             ctype="document",
             document_type=dtype,
             title=title,
+            user_id=user.id,
         )
+
+        db_session.add(doc)
+
+        db_session.commit()
+
+        return doc
+
+    return _maker
+
+
+@pytest.fixture()
+def make_document(db_session, make_document_type_groceries):
+
+    def _maker(title: str, user_id: uuid.UUID):
+        doc_id = uuid.uuid4()
+        doc = orm.Document(id=doc_id, ctype="document", title=title, user_id=user_id)
 
         db_session.add(doc)
 

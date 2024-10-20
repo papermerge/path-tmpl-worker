@@ -3,9 +3,10 @@ from datetime import datetime
 from pathlib import PurePath
 from sqlalchemy import text, select, insert, update
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Tuple
 
 from path_tmpl_worker import models
+from path_tmpl_worker.template import get_evaluated_path
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT, CTYPE_FOLDER
 from path_tmpl_worker.db.orm import (
     Document,
@@ -13,7 +14,24 @@ from path_tmpl_worker.db.orm import (
     CustomFieldValue,
     User,
     Folder,
+    DocumentType,
 )
+
+
+def get_user(session: Session, document_id: uuid.UUID) -> User:
+    stmt = select(User).join(Document).where(Document.id == document_id)
+    return session.execute(stmt).scalars().one()
+
+
+def get_path_template(session: Session, document_id: uuid.UUID) -> str:
+    stmt = (
+        select(DocumentType.path_template)
+        .join(Document)
+        .where(Document.id == document_id)
+    )
+    path_template = session.execute(stmt).scalars().one()
+
+    return path_template
 
 
 def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
@@ -73,11 +91,16 @@ def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
     return custom_fields
 
 
-def get_doc(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
+def get_document(session: Session, document_id: uuid.UUID) -> Document:
+    stmt = select(Document).where(Document.id == document_id)
+
+    return session.execute(stmt).scalars().one()
+
+
+def get_doc_ctx(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
     cf = get_doc_cfv(session, document_id)
     custom_fields = [models.CField(name=i.name, value=i.value) for i in cf]
-    stmt = select(Document).where(Document.id == document_id)
-    doc = session.execute(stmt).scalars().one()
+    doc = get_document(session, document_id)
 
     return models.DocumentContext(
         title=doc.title, id=document_id, custom_fields=custom_fields
@@ -211,3 +234,13 @@ def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
         parent = mkdir_node(session, node, parent=parent, user_id=user_id)
 
     return parent
+
+
+def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[str, Folder]:
+    doc = get_doc_ctx(session, document_id)
+    path_template = get_path_template(session, document_id)
+    user_id = get_user(session, document_id)
+    ev_path = get_evaluated_path(doc, path_template)
+    target_folder = mkdir(session, path=PurePath(ev_path), user_id=user_id)
+
+    return ev_path, target_folder

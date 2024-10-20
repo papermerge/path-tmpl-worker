@@ -1,34 +1,15 @@
 import uuid
-from datetime import datetime, date
-from jinja2.sandbox import SandboxedEnvironment
-from jinja2 import Template
+from pathlib import PurePath
 
-from path_tmpl_worker import models
-from path_tmpl_worker.models import CustomField
+from sqlalchemy.orm import Session
+from path_tmpl_worker import db
 
 
-def datefmt(value: datetime | date, format: str) -> str:
-    return value.strftime(format=format)
+def move_document(db_session: Session, document_id: uuid.UUID):
+    document = db.get_document(db_session, document_id)
+    ev_path, target_parent = db.mkdir_target(db_session, document_id)
 
+    document.title = PurePath(ev_path).name
+    document.parent_id = target_parent.id
 
-template_env = SandboxedEnvironment()
-template_env.filters["datefmt"] = datefmt
-
-
-def get_evaluated_path(
-    title: str,
-    id: uuid.UUID,
-    path_template: str,
-    custom_fields: list[CustomField] | None = None,
-) -> str:
-    if custom_fields is None:
-        custom_fields = []
-    doc_ctx = models.DocumentContext(id=id, title=title, custom_fields=custom_fields)
-    context = {"document": doc_ctx}
-    template = template_env.from_string(
-        path_template,
-        template_class=Template,
-    )
-    rendered_template = template.render(context)
-
-    return rendered_template.strip()
+    db_session.commit()

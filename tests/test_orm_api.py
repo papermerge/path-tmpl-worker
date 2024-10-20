@@ -2,9 +2,15 @@ from pathlib import PurePath
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from path_tmpl_worker.db import get_doc, update_doc_cfv
+from path_tmpl_worker.db import get_doc_ctx, update_doc_cfv
 from path_tmpl_worker.db.orm import Folder
-from path_tmpl_worker.db.api import get_user_home, mkdir_node, mkdir
+from path_tmpl_worker.db.api import (
+    get_user_home,
+    mkdir_node,
+    mkdir,
+    get_user,
+    get_path_template,
+)
 from path_tmpl_worker.models import CField
 
 
@@ -22,7 +28,7 @@ def test_get_doc_empty_valued_custom_fields(db_session: Session, make_receipt):
         title="invoice.pdf", path_template="/home/Receipts/{{document.id}}.pdf"
     )
 
-    doc = get_doc(db_session, document_id=receipt.id)
+    doc = get_doc_ctx(db_session, document_id=receipt.id)
 
     expected_cf = {
         CField(name="Shop", value=None),
@@ -44,7 +50,7 @@ def test_get_doc_non_emtpy_cf(db_session: Session, make_receipt):
     custom_fields = {"Total": 10.99, "Shop": "rewe"}
     update_doc_cfv(db_session, document_id=receipt.id, custom_fields=custom_fields)
 
-    doc = get_doc(db_session, document_id=receipt.id)
+    doc = get_doc_ctx(db_session, document_id=receipt.id)
 
     assert "invoice.pdf" == doc.title
     assert receipt.id == doc.id
@@ -93,3 +99,27 @@ def test_mkdir_basic(db_session: Session, make_user):
     assert invoices.parent_id == mydocs.id
     assert mydocs.parent_id == home.id
     assert last_node.id == invoices.id
+
+
+def test_get_user(db_session: Session, make_user, make_document):
+    user = make_user("john")
+    doc = make_document(title="letter.pdf", user_id=user.id)
+
+    document_user = get_user(db_session, doc.id)
+    assert document_user == user
+
+
+def test_get_template_path_with_existing_path_tmpl(db_session: Session, make_receipt):
+    receipt = make_receipt(
+        title="My receipt.pdf", path_template="/Groceries/{{document.title}}"
+    )
+    path_tmpl = get_path_template(db_session, document_id=receipt.id)
+
+    assert path_tmpl == "/Groceries/{{document.title}}"
+
+
+def test_get_template_path_with_empty_path_tmpl(db_session: Session, make_receipt):
+    receipt = make_receipt(title="My receipt.pdf")
+    path_tmpl = get_path_template(db_session, document_id=receipt.id)
+
+    assert path_tmpl is None
