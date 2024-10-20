@@ -101,6 +101,31 @@ def test_mkdir_basic(db_session: Session, make_user):
     assert last_node.id == invoices.id
 
 
+def test_mkdir_call_multiple_times(db_session: Session, make_user):
+    """
+    call mkdir multiple times for documents with same parent i.e.
+    in this scenario we invoke mkdir for three different documents
+    located in /home/My Documents/Invoices/
+    """
+    user = make_user("john")
+
+    last_node1 = mkdir(
+        db_session, PurePath("/home/My Documents/Invoices/file-01.pdf"), user_id=user.id
+    )
+    last_node2 = mkdir(
+        db_session, PurePath("/home/My Documents/Invoices/file-02.pdf"), user_id=user.id
+    )
+    last_node3 = mkdir(
+        db_session, PurePath("/home/My Documents/Invoices/file-03.pdf"), user_id=user.id
+    )
+
+    assert last_node1.title == "Invoices"
+    assert last_node2.title == last_node1.title
+    assert last_node2.id == last_node1.id
+    assert last_node3.title == last_node2.title
+    assert last_node3.id == last_node2.id
+
+
 def test_get_user(db_session: Session, make_user, make_document):
     user = make_user("john")
     doc = make_document(title="letter.pdf", user_id=user.id)
