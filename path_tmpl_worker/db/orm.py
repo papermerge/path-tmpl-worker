@@ -25,6 +25,7 @@ class Node(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4())
     title: Mapped[str] = mapped_column(String(200))
     ctype: Mapped[CType] = mapped_column(insert_default="document")
+    lang: Mapped[str] = mapped_column(String(8))
     user: Mapped["User"] = relationship(primaryjoin="User.id == Node.user_id")
     user_id: Mapped[UUID] = mapped_column(ForeignKey("core_user.id", use_alter=True))
     parent_id: Mapped[UUID] = mapped_column(

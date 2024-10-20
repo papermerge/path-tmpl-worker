@@ -198,15 +198,29 @@ def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.U
     if path.name in ["home", ".home"]:
         return parent
 
-    folder = Folder(
-        id=uuid.uuid4(),
-        title=path.name,
-        parent_id=parent.id,
-        user_id=user_id,
-        ctype=CTYPE_FOLDER,
+    folder = (
+        session.execute(
+            select(Folder).where(
+                Folder.parent_id == parent.id,
+                Folder.title == path.name,
+                Folder.user_id == user_id,
+            )
+        )
+        .scalars()
+        .one_or_none()
     )
-    session.add(folder)
-    session.commit()
+
+    if folder is None:
+        folder = Folder(
+            id=uuid.uuid4(),
+            title=path.name,
+            parent_id=parent.id,
+            user_id=user_id,
+            lang="en",
+            ctype=CTYPE_FOLDER,
+        )
+        session.add(folder)
+        session.commit()
 
     return folder
 
@@ -239,8 +253,8 @@ def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
 def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[str, Folder]:
     doc = get_doc_ctx(session, document_id)
     path_template = get_path_template(session, document_id)
-    user_id = get_user(session, document_id)
+    user = get_user(session, document_id)
     ev_path = get_evaluated_path(doc, path_template)
-    target_folder = mkdir(session, path=PurePath(ev_path), user_id=user_id)
+    target_folder = mkdir(session, path=PurePath(ev_path), user_id=user.id)
 
     return ev_path, target_folder

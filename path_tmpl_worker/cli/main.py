@@ -10,5 +10,5 @@ app = typer.Typer(help="CLI for Path Template worker")
 
 @app.command()
 def move_document(document_id: uuid.UUID):
-    db_session = get_db()
-    api.move_document(db_session, document_id)
+    with get_db() as session:
+        api.move_document(session, document_id)

@@ -77,6 +77,7 @@ def make_receipt(db_session, make_user, make_document_type_groceries):
             document_type=dtype,
             title=title,
             user_id=user.id,
+            lang="de",
         )
 
         db_session.add(doc)
@@ -93,7 +94,9 @@ def make_document(db_session, make_document_type_groceries):
 
     def _maker(title: str, user_id: uuid.UUID):
         doc_id = uuid.uuid4()
-        doc = orm.Document(id=doc_id, ctype="document", title=title, user_id=user_id)
+        doc = orm.Document(
+            id=doc_id, ctype="document", title=title, user_id=user_id, lang="de"
+        )
 
         db_session.add(doc)
 
@@ -125,12 +128,14 @@ def make_user(db_session: Session):
             id=inbox_id,
             title=constants.INBOX_TITLE,
             ctype=constants.CTYPE_FOLDER,
+            lang="de",
             user_id=user_id,
         )
         db_home = orm.Folder(
             id=home_id,
             title=constants.HOME_TITLE,
             ctype=constants.CTYPE_FOLDER,
+            lang="de",
             user_id=user_id,
         )
         db_session.add_all([db_home, db_inbox, db_user])
