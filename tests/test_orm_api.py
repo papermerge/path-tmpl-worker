@@ -1,6 +1,10 @@
+from pathlib import PurePath
+
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from path_tmpl_worker.db import get_doc, update_doc_cfv
-from path_tmpl_worker.db.api import get_user_home
+from path_tmpl_worker.db.orm import Folder
+from path_tmpl_worker.db.api import get_user_home, mkdir_node, mkdir
 from path_tmpl_worker.models import CField
 
 
@@ -55,3 +59,37 @@ def test_get_user_home(db_session: Session, make_user):
 
     assert home.title == user.home_folder.title
     assert home.id == user.home_folder.id
+
+
+def test_make_node_my_documents(db_session: Session, make_user):
+    user = make_user("john")
+    home = get_user_home(db_session, user.id)
+    mydocs = mkdir_node(
+        db_session, PurePath("My Documents"), parent=home, user_id=user.id
+    )
+
+    assert mydocs.parent_id == home.id
+    assert mydocs.title == "My Documents"
+    assert mydocs.user == user
+
+
+def test_mkdir_basic(db_session: Session, make_user):
+    user = make_user("john")
+    path_to_make = PurePath("/home/My Documents/Invoices/file.pdf")
+    last_node = mkdir(db_session, path_to_make, user_id=user.id)
+
+    home = get_user_home(db_session, user_id=user.id)
+    invoices = (
+        db_session.execute(select(Folder).where(Folder.title == "Invoices"))
+        .scalars()
+        .one()
+    )
+    mydocs = (
+        db_session.execute(select(Folder).where(Folder.title == "My Documents"))
+        .scalars()
+        .one()
+    )
+
+    assert invoices.parent_id == mydocs.id
+    assert mydocs.parent_id == home.id
+    assert last_node.id == invoices.id

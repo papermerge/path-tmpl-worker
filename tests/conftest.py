@@ -11,7 +11,7 @@ from path_tmpl_worker import models, constants
 engine = get_engine("sqlite:///test_db.sqlite3")
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="function")
 def db_schema():
     Base.metadata.create_all(engine)
     yield

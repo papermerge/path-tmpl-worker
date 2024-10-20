@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from path_tmpl_worker import models
-from path_tmpl_worker.constants import INCOMING_DATE_FORMAT
+from path_tmpl_worker.constants import INCOMING_DATE_FORMAT, CTYPE_FOLDER
 from path_tmpl_worker.db.orm import (
     Document,
     CustomField,
@@ -169,13 +169,23 @@ def get_user_home(session: Session, user_id: uuid.UUID) -> Folder:
 
 
 def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.UUID):
-    if path == PurePath(".") or path == PurePath("/"):
-        # home folder
+    if path in [PurePath("."), PurePath("/"), PurePath("home")]:
         return parent
 
-    # create Folder instance with parent_id == parent.id and
-    # title == path.name
-    # Folder(title=path.name, parent_id=parent.id, user_id=user_id)
+    if path.name in ["home", ".home"]:
+        return parent
+
+    folder = Folder(
+        id=uuid.uuid4(),
+        title=path.name,
+        parent_id=parent.id,
+        user_id=user_id,
+        ctype=CTYPE_FOLDER,
+    )
+    session.add(folder)
+    session.commit()
+
+    return folder
 
 
 def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
@@ -195,8 +205,9 @@ def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
 
     If path is not absolute, it will be considered relative to user's home folder
     """
-    parent = get_user_home(user_id)
+    parent = get_user_home(session, user_id)
+
     for node in reversed(PurePath(path).parents):
-        parent = mkdir_node(node, parent=parent, user_id=user_id)
+        parent = mkdir_node(session, node, parent=parent, user_id=user_id)
 
     return parent
