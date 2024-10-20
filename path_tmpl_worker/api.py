@@ -9,7 +9,7 @@ def move_document(db_session: Session, document_id: uuid.UUID):
     document = db.get_document(db_session, document_id)
     ev_path, target_parent = db.mkdir_target(db_session, document_id)
 
-    document.title = PurePath(ev_path).name
+    document.title = ev_path.name
     document.parent_id = target_parent.id
 
     db_session.commit()

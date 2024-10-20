@@ -250,11 +250,11 @@ def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
     return parent
 
 
-def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[str, Folder]:
+def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[PurePath, Folder]:
     doc = get_doc_ctx(session, document_id)
     path_template = get_path_template(session, document_id)
     user = get_user(session, document_id)
     ev_path = get_evaluated_path(doc, path_template)
-    target_folder = mkdir(session, path=PurePath(ev_path), user_id=user.id)
+    target_folder = mkdir(session, path=ev_path, user_id=user.id)
 
     return ev_path, target_folder
