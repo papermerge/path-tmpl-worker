@@ -1,3 +1,4 @@
+from pathlib import PurePath
 from datetime import datetime, date
 
 
@@ -19,7 +20,7 @@ template_env.filters["datefmt"] = datefmt
 def get_evaluated_path(
     doc: models.DocumentContext,
     path_template: str,
-) -> str:
+) -> PurePath:
     context = {"document": doc}
     template = template_env.from_string(
         path_template,
@@ -27,4 +28,4 @@ def get_evaluated_path(
     )
     rendered_template = template.render(context)
 
-    return rendered_template.strip()
+    return PurePath(rendered_template.strip())

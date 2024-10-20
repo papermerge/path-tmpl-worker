@@ -1,5 +1,6 @@
 import uuid
 from datetime import date as Date
+from pathlib import PurePath
 
 from path_tmpl_worker.template import get_evaluated_path
 from path_tmpl_worker.models import CField, DocumentContext
@@ -9,7 +10,7 @@ def test_get_evaluated_path_title():
     doc = DocumentContext(title="coco", id=uuid.uuid4())
     ev_path = get_evaluated_path(doc, path_template="/home/{{ document.title }}")
 
-    assert ev_path == "/home/coco"
+    assert ev_path == PurePath("/home/coco")
 
 
 def test_get_evaluated_path_id():
@@ -19,7 +20,7 @@ def test_get_evaluated_path_id():
         path_template="/home/{{ document.title }}-{{ document.id }}",
     )
 
-    assert ev_path == f"/home/coco-{doc.id}"
+    assert ev_path == PurePath(f"/home/coco-{doc.id}")
 
 
 def test_get_evaluated_path_with_all_cf_defined():
@@ -38,7 +39,7 @@ def test_get_evaluated_path_with_all_cf_defined():
     ]
     doc = DocumentContext(id=uuid.uuid4(), title="coco", custom_fields=custom_fields)
     ev_path = get_evaluated_path(doc, path_template=path_tmpl)
-    assert ev_path == f"/home/Groceries/lidl-2024-12-23-10.34"
+    assert ev_path == PurePath(f"/home/Groceries/lidl-2024-12-23-10.34")
 
 
 def test_get_evaluated_path_with_some_cf_missing():
@@ -57,7 +58,7 @@ def test_get_evaluated_path_with_some_cf_missing():
     doc = DocumentContext(id=uuid.uuid4(), title="coco", custom_fields=custom_fields)
 
     ev_path = get_evaluated_path(doc, path_template=path_tmpl)
-    assert ev_path == f"/home/Groceries/{doc.id}"
+    assert ev_path == PurePath(f"/home/Groceries/{doc.id}")
 
 
 def test_get_evaluated_path_with_datefmt():
@@ -79,4 +80,4 @@ def test_get_evaluated_path_with_datefmt():
     )
 
     ev_path = get_evaluated_path(doc, path_template=path_tmpl)
-    assert ev_path == "/home/Tax/2024.pdf"
+    assert ev_path == PurePath("/home/Tax/2024.pdf")
