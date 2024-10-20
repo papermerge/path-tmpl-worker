@@ -60,17 +60,11 @@ class Document(Node):
         primary_key=True,
         insert_default=uuid.uuid4(),
     )
-    ctype: Mapped[CType]
-    title: Mapped[str] = mapped_column(String(200))
     document_type: Mapped["DocumentType"] = relationship(  # noqa: F821
         primaryjoin="DocumentType.id == Document.document_type_id",
     )
     document_type_id: Mapped[UUID] = mapped_column(
         ForeignKey("document_types.id"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        insert_default=func.now(), onupdate=func.now()
     )
 
 

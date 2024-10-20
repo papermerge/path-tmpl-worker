@@ -110,6 +110,10 @@ def test_get_user(db_session: Session, make_user, make_document):
 
 
 def test_get_template_path_with_existing_path_tmpl(db_session: Session, make_receipt):
+    """
+    Document with associated DocumentType which has non-empty path_template
+    attribute
+    """
     receipt = make_receipt(
         title="My receipt.pdf", path_template="/Groceries/{{document.title}}"
     )
@@ -119,7 +123,23 @@ def test_get_template_path_with_existing_path_tmpl(db_session: Session, make_rec
 
 
 def test_get_template_path_with_empty_path_tmpl(db_session: Session, make_receipt):
+    """
+    Document with associated DocumentType which has empty path_template
+    attribute
+    """
     receipt = make_receipt(title="My receipt.pdf")
     path_tmpl = get_path_template(db_session, document_id=receipt.id)
+
+    assert path_tmpl is None
+
+
+def test_get_template_path_of_document_without_doctype(
+    db_session: Session, make_document, make_user
+):
+    """Document has no associated DocumentType"""
+    user = make_user("John")
+    doc = make_document(title="My receipt.pdf", user_id=user.id)
+
+    path_tmpl = get_path_template(db_session, document_id=doc.id)
 
     assert path_tmpl is None

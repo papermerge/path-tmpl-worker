@@ -29,7 +29,7 @@ def get_path_template(session: Session, document_id: uuid.UUID) -> str:
         .join(Document)
         .where(Document.id == document_id)
     )
-    path_template = session.execute(stmt).scalars().one()
+    path_template = session.execute(stmt).scalars().one_or_none()
 
     return path_template
 
