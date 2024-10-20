@@ -5,8 +5,9 @@ from sqlalchemy import text, select, insert, update
 from sqlalchemy.orm import Session
 from typing import Optional, Tuple
 
+from pathtmpl import get_evaluated_path, DocumentContext, CField
+
 from path_tmpl_worker import models
-from path_tmpl_worker.template import get_evaluated_path
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT, CTYPE_FOLDER
 from path_tmpl_worker.db.orm import (
     Document,
@@ -97,14 +98,12 @@ def get_document(session: Session, document_id: uuid.UUID) -> Document:
     return session.execute(stmt).scalars().one()
 
 
-def get_doc_ctx(session: Session, document_id: uuid.UUID) -> models.DocumentContext:
+def get_doc_ctx(session: Session, document_id: uuid.UUID) -> DocumentContext:
     cf = get_doc_cfv(session, document_id)
-    custom_fields = [models.CField(name=i.name, value=i.value) for i in cf]
+    custom_fields = [CField(name=i.name, value=i.value) for i in cf]
     doc = get_document(session, document_id)
 
-    return models.DocumentContext(
-        title=doc.title, id=document_id, custom_fields=custom_fields
-    )
+    return DocumentContext(title=doc.title, id=document_id, custom_fields=custom_fields)
 
 
 def str2date(value: str | None) -> Optional[datetime.date]:

@@ -1,5 +1,7 @@
 from pathlib import PurePath
 
+from pathtmpl import CField
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from path_tmpl_worker.db import get_doc_ctx, update_doc_cfv
@@ -11,7 +13,6 @@ from path_tmpl_worker.db.api import (
     get_user,
     get_path_template,
 )
-from path_tmpl_worker.models import CField
 
 
 def test_basic_fixture(make_receipt):
