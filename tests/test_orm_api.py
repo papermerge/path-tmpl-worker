@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from path_tmpl_worker.db import get_doc, update_doc_cfv
+from path_tmpl_worker.db.api import get_user_home
 from path_tmpl_worker.models import CField
 
 
@@ -46,3 +47,11 @@ def test_get_doc_non_emtpy_cf(db_session: Session, make_receipt):
     assert doc.cf["Shop"] == "rewe"
     assert doc.cf["EffectiveDate"] is None
     assert doc.cf["Total"] == 10.99
+
+
+def test_get_user_home(db_session: Session, make_user):
+    user = make_user("john")
+    home = get_user_home(db_session, user.id)
+
+    assert home.title == user.home_folder.title
+    assert home.id == user.home_folder.id

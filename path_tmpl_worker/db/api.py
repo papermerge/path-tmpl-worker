@@ -1,12 +1,19 @@
 import uuid
 from datetime import datetime
+from pathlib import PurePath
 from sqlalchemy import text, select, insert, update
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from path_tmpl_worker import models
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT
-from path_tmpl_worker.db.orm import Document, CustomField, CustomFieldValue
+from path_tmpl_worker.db.orm import (
+    Document,
+    CustomField,
+    CustomFieldValue,
+    User,
+    Folder,
+)
 
 
 def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
@@ -153,3 +160,43 @@ def update_doc_cfv(
     session.commit()
 
     return items
+
+
+def get_user_home(session: Session, user_id: uuid.UUID) -> Folder:
+    stmt = select(User).where(User.id == user_id)
+    user = session.execute(stmt).scalars().one()
+    return user.home_folder
+
+
+def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.UUID):
+    if path == PurePath(".") or path == PurePath("/"):
+        # home folder
+        return parent
+
+    # create Folder instance with parent_id == parent.id and
+    # title == path.name
+    # Folder(title=path.name, parent_id=parent.id, user_id=user_id)
+
+
+def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
+    """makes all node folders specified in path
+
+    It is assumed that Top-most folder is user's `/home/` folder.
+    If path does not start with /home/
+    it will implicitly assume '/home/' already exists and put
+    created nodes under that folder.
+    E.g.
+
+    mkdir('/My Documents/Here/invoice.pdf', 'uuid1') will
+    create folders 'My Documents` and put it in uuid1 user's home folder i.e.
+    existing /home/ folder belonging to user with uuid1.
+    Then it will create folder `Here` and put it under /home/My Documents/
+    of the user `uuid1`.
+
+    If path is not absolute, it will be considered relative to user's home folder
+    """
+    parent = get_user_home(user_id)
+    for node in reversed(PurePath(path).parents):
+        parent = mkdir_node(node, parent=parent, user_id=user_id)
+
+    return parent

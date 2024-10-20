@@ -24,9 +24,7 @@ def get_evaluated_path(
     if custom_fields is None:
         custom_fields = []
     doc_ctx = models.DocumentContext(id=id, title=title, custom_fields=custom_fields)
-    context = ({
-        "document": doc_ctx
-    })
+    context = {"document": doc_ctx}
     template = template_env.from_string(
         path_template,
         template_class=Template,
@@ -34,4 +32,3 @@ def get_evaluated_path(
     rendered_template = template.render(context)
 
     return rendered_template.strip()
-

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from path_tmpl_worker.db import Base, get_engine
 from path_tmpl_worker.db import orm
-from path_tmpl_worker import models
+from path_tmpl_worker import models, constants
 
 
 engine = get_engine("sqlite:///test_db.sqlite3")
@@ -16,7 +16,6 @@ def db_schema():
     Base.metadata.create_all(engine)
     yield
     Base.metadata.drop_all(engine)
-
 
 
 @pytest.fixture()
@@ -40,6 +39,7 @@ def make_custom_field(db_session: Session):
 
     return _make_custom_field
 
+
 @pytest.fixture
 def make_document_type_groceries(db_session: Session, make_custom_field):
 
@@ -52,7 +52,7 @@ def make_document_type_groceries(db_session: Session, make_custom_field):
             id=uuid.uuid4(),
             name=title,
             custom_fields=[cf1, cf2, cf3],
-            path_template=path_template
+            path_template=path_template,
         )
         db_session.add(dtype)
         db_session.commit()
@@ -66,7 +66,9 @@ def make_document_type_groceries(db_session: Session, make_custom_field):
 def make_receipt(db_session, make_document_type_groceries):
 
     def _maker(title: str, path_template: str | None = None):
-        dtype = make_document_type_groceries(title="Groceries", path_template=path_template)
+        dtype = make_document_type_groceries(
+            title="Groceries", path_template=path_template
+        )
         doc_id = uuid.uuid4()
         doc = orm.Document(
             id=doc_id,
@@ -80,5 +82,44 @@ def make_receipt(db_session, make_document_type_groceries):
         db_session.commit()
 
         return doc
+
+    return _maker
+
+
+@pytest.fixture()
+def make_user(db_session: Session):
+    def _maker(username: str):
+        user_id = uuid.uuid4()
+        home_id = uuid.uuid4()
+        inbox_id = uuid.uuid4()
+
+        db_user = orm.User(
+            id=user_id,
+            username=username,
+            email=f"{username}@mail.com",
+            first_name=f"{username}_first",
+            last_name=f"{username}_last",
+            is_superuser=True,
+            is_active=True,
+            password="pwd",
+        )
+        db_inbox = orm.Folder(
+            id=inbox_id,
+            title=constants.INBOX_TITLE,
+            ctype=constants.CTYPE_FOLDER,
+            user_id=user_id,
+        )
+        db_home = orm.Folder(
+            id=home_id,
+            title=constants.HOME_TITLE,
+            ctype=constants.CTYPE_FOLDER,
+            user_id=user_id,
+        )
+        db_session.add_all([db_home, db_inbox, db_user])
+        db_user.home_folder_id = db_home.id
+        db_user.inbox_folder_id = db_inbox.id
+        db_session.commit()
+
+        return db_user
 
     return _maker
