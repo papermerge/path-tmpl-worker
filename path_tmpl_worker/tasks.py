@@ -10,3 +10,10 @@ from path_tmpl_worker import constants
 def move_document(document_id: str):
     with get_db() as session:
         api.move_document(session, uuid.UUID(document_id))
+
+
+@shared_task(name=constants.PATH_TMPL_MOVE_DOCUMENTS)
+def move_documents(document_type_id: str):
+    """Move docs in bulk"""
+    with get_db() as session:
+        api.move_documents(session, uuid.UUID(document_type_id))

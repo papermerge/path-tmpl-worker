@@ -20,7 +20,8 @@ pytest = "^8.3.3"
 taskipy = "^1.13.0"
 
 [tool.poetry.scripts]
-move_document = 'path_tmpl_worker.cli.main:app'
+pathtmpl = 'path_tmpl_worker.cli.main:app'
+
 
 [tool.taskipy.tasks]
 worker = "celery -A path_tmpl_worker.celery_app worker -E -c 4"
