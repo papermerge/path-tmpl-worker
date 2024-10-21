@@ -12,12 +12,18 @@ pydantic-settings = "^2.6.0"
 pydantic = "^2.9.2"
 typer = "^0.12.5"
 pathtmpl = "^0.1.0"
+celery = {version = "^5.4", extras = ["redis"]}
+pyyaml = "^6.0.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
+taskipy = "^1.13.0"
 
 [tool.poetry.scripts]
 move_document = 'path_tmpl_worker.cli.main:app'
+
+[tool.taskipy.tasks]
+worker = "celery -A path_tmpl_worker.celery_app worker -E -c 4"
 
 [build-system]
 requires = ["poetry-core"]
