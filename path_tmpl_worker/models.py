@@ -1,6 +1,7 @@
 import uuid
 from enum import Enum
 from datetime import date
+from pathlib import PurePath
 from typing import TypeAlias
 
 from pydantic import BaseModel, ConfigDict
@@ -54,3 +55,15 @@ class CFV(BaseModel):
     custom_field_value_id: uuid.UUID | None = None
     # `custom_field_values.value_text` or `custom_field_values.value_int` or ...
     value: CFValueType = None
+
+
+class DocumentCFV(BaseModel):
+    id: uuid.UUID
+    title: str
+    document_type_id: uuid.UUID | None = None
+    custom_fields: list[tuple[str, CFValueType]]
+
+
+class BulkUpdate(BaseModel):
+    document_id: uuid.UUID
+    ev_path: PurePath

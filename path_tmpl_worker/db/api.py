@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 from pathlib import PurePath
-from sqlalchemy import text, select, insert, update
+import itertools
+from sqlalchemy import text, select, insert, update, func
 from sqlalchemy.orm import Session
 from typing import Optional, Tuple
 
@@ -19,9 +20,112 @@ from path_tmpl_worker.db.orm import (
 )
 
 
+def document_type_cf_count(session: Session, document_type_id: uuid.UUID):
+    """count number of custom fields associated to document type"""
+    stmt = select(DocumentType).where(DocumentType.id == document_type_id)
+    dtype = session.scalars(stmt).one()
+    return len(dtype.custom_fields)
+
+
+def get_docs_count_by_type(session: Session, type_id: uuid.UUID):
+    """Returns number of documents of specific document type"""
+    stmt = (
+        select(func.count())
+        .select_from(Document)
+        .where(Document.document_type_id == type_id)
+    )
+
+    return session.scalars(stmt).one()
+
+
+STMT = """
+    SELECT node.title,
+        doc.basetreenode_ptr_id AS doc_id,
+        doc.document_type_id,
+        cf.cf_id AS cf_id,
+        cf.cf_name,
+        cf.cf_type AS cf_type,
+        cf.cf_extra_data,
+        cfv.id AS cfv_id,
+        CASE
+            WHEN(cf.cf_type = 'monetary') THEN cfv.value_monetary
+            WHEN(cf.cf_type = 'text') THEN cfv.value_text
+            WHEN(cf.cf_type = 'date') THEN cfv.value_date
+            WHEN(cf.cf_type = 'boolean') THEN cfv.value_boolean
+        END AS cf_value
+    FROM core_document AS doc
+    JOIN core_basetreenode AS node
+      ON node.id == doc.basetreenode_ptr_id
+    JOIN document_type_custom_field AS dtcf ON dtcf.document_type_id = doc.document_type_id
+    JOIN(
+        SELECT
+            sub_cf1.id AS cf_id,
+            sub_cf1.name AS cf_name,
+            sub_cf1.type AS cf_type,
+            sub_cf1.extra_data AS cf_extra_data
+        FROM document_types AS sub_dt1
+        JOIN document_type_custom_field AS sub_dtcf1
+            ON sub_dtcf1.document_type_id = sub_dt1.id
+        JOIN custom_fields AS sub_cf1
+            ON sub_cf1.id = sub_dtcf1.custom_field_id
+        WHERE sub_dt1.id = :document_type_id
+    ) AS cf ON cf.cf_id = dtcf.custom_field_id
+    LEFT OUTER JOIN custom_field_values AS cfv
+        ON cfv.field_id = cf.cf_id AND cfv.document_id = doc_id
+    WHERE doc.document_type_id = :document_type_id
+"""
+
+PAGINATION = " LIMIT {limit} OFFSET {offset} "
+
+
+def get_docs_by_type(
+    session: Session,
+    document_type_id: uuid.UUID,
+    page_number: int = 1,
+    page_size: int = 300,
+) -> list[models.DocumentCFV]:
+    str_type_id = str(document_type_id).replace("-", "")
+    results = []
+    cf_count = document_type_cf_count(session, document_type_id=document_type_id)
+
+    stmt = STMT + PAGINATION.format(
+        limit=cf_count * page_size, offset=cf_count * (page_number - 1) * page_size
+    )
+    params = {"document_type_id": str_type_id}
+    rows = session.execute(text(stmt), params)
+
+    for document_id, group in itertools.groupby(rows, lambda r: r.doc_id):
+        items = list(group)
+        custom_fields = []
+
+        for item in items:
+            if item.cf_type == "date":
+                value = str2date(item.cf_value)
+            else:
+                value = item.cf_value
+            custom_fields.append((item.cf_name, value))
+
+        results.append(
+            models.DocumentCFV(
+                id=uuid.UUID(document_id),
+                title=items[0].title,
+                document_type_id=uuid.UUID(items[0].document_type_id),
+                custom_fields=custom_fields,
+            )
+        )
+
+    return results
+
+
 def get_user(session: Session, document_id: uuid.UUID) -> User:
     stmt = select(User).join(Document).where(Document.id == document_id)
     return session.execute(stmt).scalars().one()
+
+
+def get_document_type(session: Session, document_type_id: uuid.UUID) -> DocumentType:
+    stmt = select(DocumentType).where(DocumentType.id == document_type_id)
+    db_item = session.scalars(stmt).unique().one()
+    return db_item
 
 
 def get_path_template(session: Session, document_id: uuid.UUID) -> str:
