@@ -13,6 +13,12 @@ PAGE_SIZE = 1000
 
 
 def move_document(db_session: Session, document_id: uuid.UUID):
+    """Move document
+
+    Evaluate new document path (based on path template of the associated
+    document type) and (maybe) move document to the new location.
+    Document may eventually get new title.
+    """
     document = db.get_document(db_session, document_id)
     ev_path, target_parent = db.mkdir_target(db_session, document_id)
 
@@ -23,6 +29,14 @@ def move_document(db_session: Session, document_id: uuid.UUID):
 
 
 def move_documents(db_session: Session, document_type_id: uuid.UUID):
+    """Move documents in bulk
+
+    Affects all documents with type id = `document_type_id`
+    For each document of given type evaluate new document path (based on path
+        template of the associated document type)
+    And then apply bulk update of the new docs.parent_id and docs.title
+    (both paren_id and title may change depending on the evaluated path)
+    """
     dtype = db.get_document_type(db_session, document_type_id)
     total_count = db.get_docs_count_by_type(db_session, document_type_id)
     page_size = min(PAGE_SIZE, total_count)
