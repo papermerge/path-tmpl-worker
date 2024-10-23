@@ -40,6 +40,7 @@ def get_docs_count_by_type(session: Session, type_id: uuid.UUID):
 
 STMT = """
     SELECT node.title,
+        node.parent_id,
         doc.basetreenode_ptr_id AS doc_id,
         doc.document_type_id,
         cf.cf_id AS cf_id,
@@ -109,6 +110,7 @@ def get_docs_by_type(
             models.DocumentCFV(
                 id=uuid.UUID(document_id),
                 title=items[0].title,
+                parent_id=items[0].parent_id,
                 document_type_id=uuid.UUID(items[0].document_type_id),
                 custom_fields=custom_fields,
             )

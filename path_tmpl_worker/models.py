@@ -2,9 +2,12 @@ import uuid
 from enum import Enum
 from datetime import date
 from pathlib import PurePath
-from typing import TypeAlias
+from typing import TypeAlias, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
+
+
+T = TypeVar("T")
 
 
 class CustomFieldType(str, Enum):
@@ -59,6 +62,7 @@ class CFV(BaseModel):
 
 class DocumentCFV(BaseModel):
     id: uuid.UUID
+    parent_id: uuid.UUID
     title: str
     document_type_id: uuid.UUID | None = None
     custom_fields: list[tuple[str, CFValueType]]
@@ -67,3 +71,27 @@ class DocumentCFV(BaseModel):
 class BulkUpdate(BaseModel):
     document_id: uuid.UUID
     ev_path: PurePath
+
+
+class DocumentMovedNotification(BaseModel):
+    # all documents will be moved to the same
+    source_folder_id: uuid.UUID
+    target_folder_id: uuid.UUID
+    old_document_title: str
+    new_document_title: str
+    document_id: uuid.UUID
+    user_id: uuid.UUID
+
+
+class DocumentsMovedNotification(BaseModel):
+    count: int
+    document_type_name: str
+    document_type_id: uuid.UUID
+    user_id: uuid.UUID
+    source_folder_ids: list[uuid.UUID]
+    target_folder_ids: list[uuid.UUID]
+
+
+class Event(BaseModel, Generic[T]):
+    type: str
+    payload: T
