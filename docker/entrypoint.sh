@@ -1,11 +1,16 @@
 #!/bin/sh
 
+echo "in entrypoint"
+
+echo "argument $1"
+
 exec_worker() {
-  exec poetry run celery -A path_tmpl_worker.celery_app worker {PATH_TMPL_WORKER_ARGS}
+  echo "now in exec_worker"
+  exec poetry run celery -A path_tmpl_worker.celery_app worker ${PATH_TMPL_WORKER_ARGS}
 }
 
 case $1 in
-  server)
+  worker)
     exec_worker
     ;;
   *)
