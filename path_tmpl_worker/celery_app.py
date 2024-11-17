@@ -1,8 +1,6 @@
-import yaml
 from celery import Celery
 from path_tmpl_worker import config, utils
 from celery.signals import setup_logging
-from logging.config import dictConfig
 
 
 settings = config.get_settings()

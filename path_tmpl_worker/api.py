@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from path_tmpl_worker import db
 from pathtmpl import DocumentContext, CField, get_evaluated_path
 
-from path_tmpl_worker.db.api import get_user
 from path_tmpl_worker.db.orm import Document
 from path_tmpl_worker.models import (
     DocumentCFV,
