@@ -1,20 +1,26 @@
-from functools import lru_cache
-from sqlalchemy import create_engine
+import logging
+import os
+
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
-from path_tmpl_worker.config import get_settings
+SQLALCHEMY_DATABASE_URL = os.environ.get(
+    "PAPERMERGE__DATABASE__URL", "sqlite:////db/db.sqlite3"
+)
+connect_args = {}
+logger = logging.getLogger(__name__)
+
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    # sqlite specific connection args
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args=connect_args, poolclass=NullPool
+)
+
+Session = sessionmaker(engine, expire_on_commit=False)
 
 
-@lru_cache()
-def get_engine(url: str | None = None):
-    settings = get_settings()
-
-    if url is None:
-        SQLALCHEMY_DATABASE_URL = settings.papermerge__database__url
-    else:
-        SQLALCHEMY_DATABASE_URL = url
-
-    return create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        poolclass=NullPool,
-    )
+def get_engine() -> Engine:
+    return engine

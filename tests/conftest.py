@@ -1,27 +1,23 @@
 import uuid
 import pytest
 
-from sqlalchemy.orm import Session
 
-from path_tmpl_worker.db import Base, get_engine
+from path_tmpl_worker.db import Base
+from path_tmpl_worker.db.engine import engine, Session
 from path_tmpl_worker.db import orm
 from path_tmpl_worker import models, constants
+from path_tmpl_worker.config import get_settings
+
+config = get_settings()
 
 
-engine = get_engine("sqlite:///test_db.sqlite3")
-
-
-@pytest.fixture(autouse=True, scope="function")
-def db_schema():
-    Base.metadata.create_all(engine)
-    yield
-    Base.metadata.drop_all(engine)
-
-
-@pytest.fixture()
+@pytest.fixture(scope="function")
 def db_session():
-    with Session(engine) as session:
+    Base.metadata.create_all(engine, checkfirst=False)
+    with Session() as session:
         yield session
+
+    Base.metadata.drop_all(engine, checkfirst=False)
 
 
 @pytest.fixture
@@ -109,7 +105,7 @@ def make_document(db_session, make_document_type_groceries):
 
 @pytest.fixture()
 def make_user(db_session: Session):
-    def _maker(username: str):
+    def _maker(username: str, is_superuser: bool = True):
         user_id = uuid.uuid4()
         home_id = uuid.uuid4()
         inbox_id = uuid.uuid4()
@@ -120,7 +116,7 @@ def make_user(db_session: Session):
             email=f"{username}@mail.com",
             first_name=f"{username}_first",
             last_name=f"{username}_last",
-            is_superuser=True,
+            is_superuser=is_superuser,
             is_active=True,
             password="pwd",
         )
@@ -138,7 +134,10 @@ def make_user(db_session: Session):
             lang="de",
             user_id=user_id,
         )
-        db_session.add_all([db_home, db_inbox, db_user])
+        db_session.add(db_inbox)
+        db_session.add(db_home)
+        db_session.add(db_user)
+        db_session.commit()
         db_user.home_folder_id = db_home.id
         db_user.inbox_folder_id = db_inbox.id
         db_session.commit()
