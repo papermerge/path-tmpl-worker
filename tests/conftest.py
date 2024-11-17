@@ -145,3 +145,8 @@ def make_user(db_session: Session):
         return db_user
 
     return _maker
+
+
+@pytest.fixture()
+def user(make_user) -> orm.User:
+    return make_user(username="random")

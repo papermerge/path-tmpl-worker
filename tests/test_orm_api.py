@@ -1,10 +1,13 @@
 from pathlib import PurePath
 
+import jinja2.exceptions
+import pytest
 from pathtmpl import CField
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from path_tmpl_worker.db import get_doc_ctx, update_doc_cfv
+from path_tmpl_worker import constants
 from path_tmpl_worker.db.orm import Folder
 from path_tmpl_worker.db.api import (
     get_user_home,
@@ -12,6 +15,7 @@ from path_tmpl_worker.db.api import (
     mkdir,
     get_user,
     get_path_template,
+    mkdir_target,
 )
 
 
@@ -169,3 +173,59 @@ def test_get_template_path_of_document_without_doctype(
     path_tmpl = get_path_template(db_session, document_id=doc.id)
 
     assert path_tmpl is None
+
+
+def test_mkdir_target_basic(db_session, make_receipt):
+    doc = make_receipt(
+        title="my receipt.pdf", path_template="/home/{{document.id}}.pdf"
+    )
+    ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
+
+    assert str(ev_path) == f"/home/{doc.id}.pdf"
+    assert target_folder.title == constants.HOME_TITLE
+
+
+def test_mkdir_target_doc_with_custom_fields(db_session, make_receipt):
+    template_path = """
+    {% if document.cf['EffectiveDate'] %}
+        /home/Receipts/{{ document.cf['Shop'] }}-{{document.cf['EffectiveDate']}}-{{document.id}}.pdf
+    {% else %}
+        /home/Receipts/{{ document.id }}.pdf
+    {% endif %}
+    """
+    doc = make_receipt(title="my receipt.pdf", path_template=template_path)
+    custom_fields = {"Total": 10.99, "Shop": "rewe", "EffectiveDate": "2024-11-18"}
+    update_doc_cfv(db_session, document_id=doc.id, custom_fields=custom_fields)
+
+    ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
+
+    assert str(ev_path) == f"/home/Receipts/rewe-2024-11-18-{doc.id}.pdf"
+    assert target_folder.title == "Receipts"
+
+
+def test_mkdir_target_invalid_template1(db_session, make_receipt):
+    invalid_template = """
+    {% if document.cf['EffectiveDate'] %}
+        /home/Receipts/{{ document.cf['Shop'] - document.cf['EffectiveDate'] - document.id}}.pdf
+    {% else %}
+        /home/Receipts/{{ document.id }}.pdf
+    {% endif %}
+    """
+    doc = make_receipt(title="my receipt.pdf", path_template=invalid_template)
+    custom_fields = {"Total": 10.99, "Shop": "rewe", "EffectiveDate": "2024-11-18"}
+    update_doc_cfv(db_session, document_id=doc.id, custom_fields=custom_fields)
+
+    with pytest.raises(TypeError):
+        mkdir_target(db_session, document_id=doc.id)
+
+
+def test_mkdir_target_invalid_template2(db_session, make_receipt):
+    invalid_template = """
+        {{ what is this?
+    """
+    doc = make_receipt(title="my receipt.pdf", path_template=invalid_template)
+    custom_fields = {"Total": 10.99, "Shop": "rewe", "EffectiveDate": "2024-11-18"}
+    update_doc_cfv(db_session, document_id=doc.id, custom_fields=custom_fields)
+
+    with pytest.raises(jinja2.exceptions.TemplateSyntaxError):
+        mkdir_target(db_session, document_id=doc.id)
