@@ -11,6 +11,48 @@ from path_tmpl_worker.db.base import Base
 CType = Literal["document", "folder"]
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4())
+    username: Mapped[str]
+    email: Mapped[str]
+    password: Mapped[str]
+    first_name: Mapped[str] = mapped_column(default=" ")
+    last_name: Mapped[str] = mapped_column(default=" ")
+    is_superuser: Mapped[bool] = mapped_column(default=False)
+    is_staff: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=False)
+    nodes: Mapped[list["Node"]] = relationship(
+        back_populates="user", primaryjoin="User.id == Node.user_id", cascade="delete"
+    )
+    home_folder_id: Mapped[UUID] = mapped_column(
+        ForeignKey("folders.node_id", deferrable=True, ondelete="CASCADE"),
+        nullable=True,
+    )
+    home_folder: Mapped["Folder"] = relationship(
+        primaryjoin="User.home_folder_id == Folder.id",
+        back_populates="user",
+        viewonly=True,
+        cascade="delete",
+    )
+    inbox_folder_id: Mapped[UUID] = mapped_column(
+        ForeignKey("folders.node_id", deferrable=True, ondelete="CASCADE"),
+        nullable=True,
+    )
+    inbox_folder: Mapped["Folder"] = relationship(
+        primaryjoin="User.inbox_folder_id == Folder.id",
+        back_populates="user",
+        viewonly=True,
+        cascade="delete",
+    )
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+    date_joined: Mapped[datetime] = mapped_column(insert_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        insert_default=func.now(), onupdate=func.now()
+    )
+
+
 class DocumentTypeCustomField(Base):
     __tablename__ = "document_types_custom_fields"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,7 +71,7 @@ class Node(Base):
     user: Mapped["User"] = relationship(
         back_populates="nodes",
         primaryjoin="User.id == Node.user_id",
-        remote_side="User.id",
+        remote_side=User.id,
         cascade="delete",
     )
     user_id: Mapped[UUID] = mapped_column(
@@ -90,6 +132,10 @@ class Document(Node):
         ForeignKey("document_types.id"), nullable=True
     )
 
+    __mapper_args__ = {
+        "polymorphic_identity": "document",
+    }
+
 
 class DocumentType(Base):
     __tablename__ = "document_types"
@@ -129,45 +175,3 @@ class CustomFieldValue(Base):
 
     def __repr__(self):
         return f"CustomFieldValue(ID={self.id})"
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4())
-    username: Mapped[str]
-    email: Mapped[str]
-    password: Mapped[str]
-    first_name: Mapped[str] = mapped_column(default=" ")
-    last_name: Mapped[str] = mapped_column(default=" ")
-    is_superuser: Mapped[bool] = mapped_column(default=False)
-    is_staff: Mapped[bool] = mapped_column(default=False)
-    is_active: Mapped[bool] = mapped_column(default=False)
-    nodes: Mapped[list["Node"]] = relationship(
-        back_populates="user", primaryjoin="User.id == Node.user_id", cascade="delete"
-    )
-    home_folder_id: Mapped[UUID] = mapped_column(
-        ForeignKey("folders.node_id", deferrable=True, ondelete="CASCADE"),
-        nullable=True,
-    )
-    home_folder: Mapped["Folder"] = relationship(
-        primaryjoin="User.home_folder_id == Folder.id",
-        back_populates="user",
-        viewonly=True,
-        cascade="delete",
-    )
-    inbox_folder_id: Mapped[UUID] = mapped_column(
-        ForeignKey("folders.node_id", deferrable=True, ondelete="CASCADE"),
-        nullable=True,
-    )
-    inbox_folder: Mapped["Folder"] = relationship(
-        primaryjoin="User.inbox_folder_id == Folder.id",
-        back_populates="user",
-        viewonly=True,
-        cascade="delete",
-    )
-    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
-    date_joined: Mapped[datetime] = mapped_column(insert_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        insert_default=func.now(), onupdate=func.now()
-    )
