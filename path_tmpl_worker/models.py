@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import PurePath
 from typing import TypeAlias, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 
 T = TypeVar("T")
@@ -58,6 +58,14 @@ class CFV(BaseModel):
     custom_field_value_id: uuid.UUID | None = None
     # `custom_field_values.value_text` or `custom_field_values.value_int` or ...
     value: CFValueType = None
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def convert_value(cls, value, info: ValidationInfo) -> CFValueType:
+        if value and info.data["type"] == CustomFieldType.monetary:
+            return float(value)
+
+        return value
 
 
 class DocumentCFV(BaseModel):

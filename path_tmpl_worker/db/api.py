@@ -2,8 +2,8 @@ import uuid
 from datetime import datetime
 from pathlib import PurePath
 import itertools
-from sqlalchemy import text, select, insert, update, func
-from sqlalchemy.orm import Session
+from sqlalchemy import text, select, insert, update, func, Select, VARCHAR, case
+from sqlalchemy.orm import Session, aliased
 from typing import Optional, Tuple
 
 from pathtmpl import get_evaluated_path, DocumentContext, CField
@@ -17,7 +17,12 @@ from path_tmpl_worker.db.orm import (
     User,
     Folder,
     DocumentType,
+    DocumentTypeCustomField,
 )
+
+
+# len(2024-11-02) + 1
+DATE_LEN = 11
 
 
 def document_type_cf_count(session: Session, document_type_id: uuid.UUID):
@@ -141,61 +146,85 @@ def get_path_template(session: Session, document_id: uuid.UUID) -> str:
     return path_template
 
 
-def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
-    stmt = """ 
-        SELECT
-            doc.basetreenode_ptr_id AS doc_id,
+def select_cf_by_document_id(document_id: uuid.UUID) -> Select:
+    stmt = (
+        select(
+            CustomField.id, CustomField.name, CustomField.type, CustomField.extra_data
+        )
+        .select_from(Document)
+        .join(
+            DocumentTypeCustomField,
+            DocumentTypeCustomField.document_type_id == Document.document_type_id,
+        )
+        .join(CustomField, CustomField.id == DocumentTypeCustomField.custom_field_id)
+    ).where(Document.id == document_id)
+
+    return stmt
+
+
+def select_doc_cfv(document_id: uuid.UUID) -> Select:
+    """Returns SqlAlchemy selector for document custom field values"""
+    cf = select_cf_by_document_id(document_id).subquery("cf")
+    cfv = aliased(CustomFieldValue, name="cfv")
+    assoc = aliased(DocumentTypeCustomField, name="assoc")
+    doc = aliased(Document, name="doc")
+
+    stmt = (
+        select(
+            doc.id.label("doc_id"),
             doc.document_type_id,
-            cf.cf_id AS cf_id,
-            cf.cf_name,
-            cf.cf_type AS cf_type,
-            cfv.id AS cfv_id,
-            CASE
-                WHEN(cf.cf_type = 'monetary') THEN cfv.value_monetary
-                WHEN(cf.cf_type = 'text') THEN cfv.value_text
-                WHEN(cf.cf_type = 'date') THEN cfv.value_date
-                WHEN(cf.cf_type = 'boolean') THEN cfv.value_boolean
-            END AS cf_value
-        FROM core_document AS doc
-        JOIN document_type_custom_field AS dtcf ON dtcf.document_type_id = doc.document_type_id
-        JOIN(
-            SELECT
-                sub_cf1.id AS cf_id,
-                sub_cf1.name AS cf_name,
-                sub_cf1.type AS cf_type,
-                sub_cf1.extra_data AS cf_extra_data
-            FROM core_document AS sub_doc1
-            JOIN document_type_custom_field AS sub_dtcf1
-                ON sub_dtcf1.document_type_id = sub_doc1.document_type_id
-            JOIN custom_fields AS sub_cf1
-                ON sub_cf1.id = sub_dtcf1.custom_field_id
-            WHERE sub_doc1.basetreenode_ptr_id = :document_id
-        ) AS cf ON cf.cf_id = dtcf.custom_field_id
-        LEFT OUTER JOIN custom_field_values AS cfv
-            ON cfv.field_id = cf.cf_id AND cfv.document_id = :document_id
-    WHERE
-        doc.basetreenode_ptr_id = :document_id
-    """
-    custom_fields = []
-    str_doc_id = str(document_id).replace("-", "")
-    for row in session.execute(text(stmt), {"document_id": str_doc_id}):
+            cf.c.name.label("cf_name"),
+            cf.c.extra_data.label("cf_extra_data"),
+            cf.c.type.label("cf_type"),
+            cf.c.id.label("cf_id"),
+            cfv.id.label("cfv_id"),
+            case(
+                (cf.c.type == "monetary", func.cast(cfv.value_monetary, VARCHAR)),
+                (cf.c.type == "text", func.cast(cfv.value_text, VARCHAR)),
+                (
+                    cf.c.type == "date",
+                    func.substr(func.cast(cfv.value_date, VARCHAR), 0, DATE_LEN),
+                ),
+                (cf.c.type == "boolean", func.cast(cfv.value_boolean, VARCHAR)),
+            ).label("cf_value"),
+        )
+        .select_from(doc)
+        .join(assoc, assoc.document_type_id == doc.document_type_id)
+        .join(cf, cf.c.id == assoc.custom_field_id)
+        .join(
+            cfv,
+            (cfv.field_id == cf.c.id) & (cfv.document_id == document_id),
+            isouter=True,
+        )
+        .where(doc.id == document_id)
+    )
+
+    return stmt
+
+
+def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
+    stmt = select_doc_cfv(document_id)
+    result = []
+    for row in session.execute(stmt):
         if row.cf_type == "date":
             value = str2date(row.cf_value)
         else:
             value = row.cf_value
-        custom_fields.append(
+
+        result.append(
             models.CFV(
                 document_id=row.doc_id,
                 document_type_id=row.document_type_id,
                 custom_field_id=row.cf_id,
                 name=row.cf_name,
                 type=row.cf_type,
+                extra_data=row.cf_extra_data,
                 custom_field_value_id=row.cfv_id,
                 value=value,
             )
         )
 
-    return custom_fields
+    return result
 
 
 def get_document(session: Session, document_id: uuid.UUID) -> Document:
