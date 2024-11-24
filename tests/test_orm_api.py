@@ -17,6 +17,7 @@ from path_tmpl_worker.db.api import (
     get_path_template,
     mkdir_target,
 )
+from .utils import get_ancestors
 
 
 def test_basic_fixture(make_receipt):
@@ -86,7 +87,7 @@ def test_make_node_my_documents(db_session: Session, make_user):
 
 def test_mkdir_basic(db_session: Session, make_user):
     user = make_user("john")
-    path_to_make = PurePath("/home/My Documents/Invoices/file.pdf")
+    path_to_make = "/home/My Documents/Invoices/file.pdf"
     last_node = mkdir(db_session, path_to_make, user_id=user.id)
 
     home = get_user_home(db_session, user_id=user.id)
@@ -115,13 +116,13 @@ def test_mkdir_call_multiple_times(db_session: Session, make_user):
     user = make_user("john")
 
     last_node1 = mkdir(
-        db_session, PurePath("/home/My Documents/Invoices/file-01.pdf"), user_id=user.id
+        db_session, "/home/My Documents/Invoices/file-01.pdf", user_id=user.id
     )
     last_node2 = mkdir(
-        db_session, PurePath("/home/My Documents/Invoices/file-02.pdf"), user_id=user.id
+        db_session, "/home/My Documents/Invoices/file-02.pdf", user_id=user.id
     )
     last_node3 = mkdir(
-        db_session, PurePath("/home/My Documents/Invoices/file-03.pdf"), user_id=user.id
+        db_session, "/home/My Documents/Invoices/file-03.pdf", user_id=user.id
     )
 
     assert last_node1.title == "Invoices"
@@ -185,6 +186,35 @@ def test_mkdir_target_basic(db_session, make_receipt):
     assert target_folder.title == constants.HOME_TITLE
 
 
+def test_mkdir_target_as_folder(db_session, make_receipt):
+    # last part of path_template ends with "/", means target is a folder
+    doc = make_receipt(
+        title="my receipt.pdf", path_template="/home/My Documents/Receipts/"
+    )
+    ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
+
+    breadcrumb = "/".join(a[1] for a in get_ancestors(db_session, target_folder.id))
+    breadcrumb = "/" + breadcrumb
+
+    assert ev_path == "/home/My Documents/Receipts/"
+    assert target_folder.title == "Receipts"
+    assert breadcrumb == "/home/My Documents/Receipts"
+
+
+def test_mkdir_target_as_document(db_session, make_receipt):
+    # last part of path_template does NOT end with "/", means target
+    # is a document
+    doc = make_receipt(title="my receipt.pdf", path_template="/home/My Documents/coco")
+    ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
+
+    breadcrumb = "/".join(a[1] for a in get_ancestors(db_session, target_folder.id))
+    breadcrumb = "/" + breadcrumb
+
+    assert ev_path == "/home/My Documents/coco"
+    assert target_folder.title == "My Documents"
+    assert breadcrumb == "/home/My Documents"
+
+
 def test_mkdir_target_doc_with_custom_fields(db_session, make_receipt):
     template_path = """
     {% if document.cf['EffectiveDate'] %}
@@ -199,7 +229,18 @@ def test_mkdir_target_doc_with_custom_fields(db_session, make_receipt):
 
     ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
 
-    assert str(ev_path) == f"/home/Receipts/rewe-2024-11-18-{doc.id}.pdf"
+    assert ev_path.strip() == f"/home/Receipts/rewe-2024-11-18-{doc.id}.pdf"
+    assert target_folder.title == "Receipts"
+
+
+def test_mkdir_target_when_target_is_a_folder(db_session, make_receipt):
+    template_path = """
+        /home/My Documents/Receipts/
+    """
+    doc = make_receipt(title="my receipt.pdf", path_template=template_path)
+    ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
+
+    assert ev_path.strip() == "/home/My Documents/Receipts/"
     assert target_folder.title == "Receipts"
 
 

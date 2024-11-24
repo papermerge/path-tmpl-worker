@@ -74,6 +74,7 @@ def make_receipt(db_session, make_user, make_document_type_groceries):
             title=title,
             user_id=user.id,
             lang="de",
+            parent_id=user.home_folder_id,
         )
 
         db_session.add(doc)
