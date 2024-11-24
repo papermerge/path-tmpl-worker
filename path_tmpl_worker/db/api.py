@@ -381,7 +381,7 @@ def mkdir(session: Session, path: str, user_id: uuid.UUID) -> Folder:
     stripped_path = path.strip()
     if stripped_path.endswith("/"):
         # Last part of the path is a folder, include it as parent
-        parents = [PurePath(stripped_path), *PurePath(path).parents]
+        parents = [PurePath(stripped_path), *PurePath(stripped_path).parents]
     else:
         parents = PurePath(stripped_path).parents
 

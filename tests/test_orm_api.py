@@ -17,6 +17,7 @@ from path_tmpl_worker.db.api import (
     get_path_template,
     mkdir_target,
 )
+from .utils import get_ancestors
 
 
 def test_basic_fixture(make_receipt):
@@ -192,8 +193,12 @@ def test_mkdir_target_as_folder(db_session, make_receipt):
     )
     ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
 
+    breadcrumb = "/".join(a[1] for a in get_ancestors(db_session, target_folder.id))
+    breadcrumb = "/" + breadcrumb
+
     assert ev_path == "/home/My Documents/Receipts/"
     assert target_folder.title == "Receipts"
+    assert breadcrumb == "/home/My Documents/Receipts"
 
 
 def test_mkdir_target_as_document(db_session, make_receipt):
@@ -202,8 +207,12 @@ def test_mkdir_target_as_document(db_session, make_receipt):
     doc = make_receipt(title="my receipt.pdf", path_template="/home/My Documents/coco")
     ev_path, target_folder = mkdir_target(db_session, document_id=doc.id)
 
+    breadcrumb = "/".join(a[1] for a in get_ancestors(db_session, target_folder.id))
+    breadcrumb = "/" + breadcrumb
+
     assert ev_path == "/home/My Documents/coco"
     assert target_folder.title == "My Documents"
+    assert breadcrumb == "/home/My Documents"
 
 
 def test_mkdir_target_doc_with_custom_fields(db_session, make_receipt):

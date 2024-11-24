@@ -1,3 +1,4 @@
+from pathlib import PurePath
 import uuid
 
 from sqlalchemy import update
@@ -30,7 +31,14 @@ def move_document(
     old_document_title = document.title
     ev_path, target_parent = db.mkdir_target(db_session, document_id)
 
-    document.title = PurePath(ev_path).name
+    stripped_ev_path = ev_path.strip()
+    if stripped_ev_path.endswith("/"):
+        # title does not change
+        new_document_title = document.title
+    else:
+        document.title = PurePath(stripped_ev_path).name
+        new_document_title = PurePath(stripped_ev_path).name
+
     document.parent_id = target_parent.id
 
     db_session.commit()
@@ -38,7 +46,7 @@ def move_document(
         document_id=document_id,
         user_id=user_id,
         old_document_title=old_document_title,
-        new_document_title=ev_path.name,
+        new_document_title=new_document_title,
         source_folder_id=source_folder_id,
         target_folder_id=target_parent.id,
     )
