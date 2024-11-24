@@ -359,7 +359,7 @@ def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.U
     return folder
 
 
-def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
+def mkdir(session: Session, path: str, user_id: uuid.UUID) -> Folder:
     """makes all node folders specified in path
 
     It is assumed that Top-most folder is user's `/home/` folder.
@@ -378,13 +378,20 @@ def mkdir(session: Session, path: PurePath, user_id: uuid.UUID) -> Folder:
     """
     parent = get_user_home(session, user_id)
 
-    for node in reversed(PurePath(path).parents):
+    stripped_path = path.strip()
+    if stripped_path.endswith("/"):
+        # Last part of the path is a folder, include it as parent
+        parents = [PurePath(stripped_path), *PurePath(path).parents]
+    else:
+        parents = PurePath(stripped_path).parents
+
+    for node in reversed(parents):
         parent = mkdir_node(session, node, parent=parent, user_id=user_id)
 
     return parent
 
 
-def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[PurePath, Folder]:
+def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[str, Folder]:
     doc = get_doc_ctx(session, document_id)
     path_template = get_path_template(session, document_id)
     user = get_user(session, document_id)

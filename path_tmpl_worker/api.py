@@ -30,7 +30,7 @@ def move_document(
     old_document_title = document.title
     ev_path, target_parent = db.mkdir_target(db_session, document_id)
 
-    document.title = ev_path.name
+    document.title = PurePath(ev_path).name
     document.parent_id = target_parent.id
 
     db_session.commit()
