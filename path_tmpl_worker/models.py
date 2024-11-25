@@ -100,6 +100,7 @@ class DocumentCFV(BaseModel):
 class BulkUpdate(BaseModel):
     document_id: uuid.UUID
     ev_path: str
+    title: str
 
 
 class DocumentMovedNotification(BaseModel):

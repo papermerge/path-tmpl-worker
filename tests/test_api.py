@@ -37,9 +37,8 @@ def test_move_documents(db_session, make_receipt):
         select(orm.Document).where(orm.Document.id == doc.id)
     ).scalar()
 
-    # title did not change
-    assert refreshed_doc.title == "bon.pdf"
-
     actual_breadcrumb = "/".join([a[1] for a in get_ancestors(db_session, doc.id)])
     actual_breadcrumb = "/" + actual_breadcrumb
     assert actual_breadcrumb == "/home/My Documents/Receipts/bon.pdf"
+    # title did not change
+    assert refreshed_doc.title == "bon.pdf"
