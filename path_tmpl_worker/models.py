@@ -29,6 +29,7 @@ class CustomField(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+CFNameType: TypeAlias = str
 CFValueType: TypeAlias = str | int | date | bool | float | None
 
 
@@ -68,17 +69,38 @@ class CFV(BaseModel):
         return value
 
 
+CustomFieldTupleType: TypeAlias = tuple[CFNameType, CFValueType, CustomFieldType]
+
+
 class DocumentCFV(BaseModel):
     id: uuid.UUID
     parent_id: uuid.UUID
     title: str
     document_type_id: uuid.UUID | None = None
-    custom_fields: list[tuple[str, CFValueType]]
+    custom_fields: list[CustomFieldTupleType]
+
+    @field_validator("custom_fields", mode="before")
+    @classmethod
+    def convert_value(cld, value, info: ValidationInfo) -> CFValueType:
+        if value:
+            new_value: list[CustomFieldTupleType] = []
+            for item in value:
+                if item[2] == CustomFieldType.monetary and item[1]:
+                    new_item: CustomFieldTupleType = (item[0], float(item[1]), item[2])
+                    new_value.append(new_item)
+                else:
+                    new_item: CustomFieldTupleType = (item[0], item[1], item[2])
+                    new_value.append(new_item)
+
+            return new_value
+
+        return value
 
 
 class BulkUpdate(BaseModel):
     document_id: uuid.UUID
-    ev_path: PurePath
+    ev_path: str
+    title: str
 
 
 class DocumentMovedNotification(BaseModel):
@@ -103,3 +125,18 @@ class DocumentsMovedNotification(BaseModel):
 class Event(BaseModel, Generic[T]):
     type: str
     payload: T
+
+
+class DocumentCFVWithIndex(BaseModel):
+    dcfv: DocumentCFV
+    index: int
+
+
+class DocumentCFVRow(BaseModel):
+    title: str
+    doc_id: uuid.UUID
+    document_type_id: uuid.UUID
+    parent_id: uuid.UUID
+    cf_name: CFNameType
+    cf_type: CustomFieldType
+    cf_value: CFValueType

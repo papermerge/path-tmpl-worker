@@ -70,10 +70,13 @@ def move_documents(
     total_moved = 0
     source_folder_ids = set()
     target_folder_ids = set()
-
     for page_number in range(1, number_of_pages + 1):
         doc_cfvs: list[DocumentCFV] = db.get_docs_by_type(
-            db_session, document_type_id, page_number=page_number, page_size=page_size
+            db_session,
+            document_type_id,
+            page_number=page_number,
+            page_size=page_size,
+            user_id=user_id,
         )
         updates = []
         for doc_cfv in doc_cfvs:
@@ -85,7 +88,9 @@ def move_documents(
             )
             ev_path = get_evaluated_path(ctx, dtype.path_template)
             source_folder_ids.add(doc_cfv.parent_id)
-            updates.append(BulkUpdate(document_id=ctx.id, ev_path=ev_path))
+            updates.append(
+                BulkUpdate(document_id=ctx.id, ev_path=ev_path, title=ctx.title)
+            )
 
         target_folder_ids.update(apply_updates(db_session, updates, user_id=user_id))
         total_moved += len(updates)
@@ -110,12 +115,20 @@ def apply_updates(
     target_folder_ids = []
     update_values = []
     for item in updates:
-        target_folder = db.mkdir(db_session, item.ev_path, user_id)
-        v = {
-            "id": item.document_id,
-            "parent_id": target_folder.id,
-            "title": item.ev_path.name,
-        }
+        stripped_ev_path = item.ev_path.strip()
+        target_folder = db.mkdir(db_session, stripped_ev_path, user_id)
+        if stripped_ev_path.endswith("/"):
+            v = {
+                "id": item.document_id,
+                "parent_id": target_folder.id,
+                "title": item.title,
+            }
+        else:
+            v = {
+                "id": item.document_id,
+                "parent_id": target_folder.id,
+                "title": PurePath(stripped_ev_path).name,
+            }
         update_values.append(v)
         target_folder_ids.append(target_folder.id)
 

@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
 from pathlib import PurePath
-import itertools
-from sqlalchemy import text, select, insert, update, func, Select, VARCHAR, case
+from sqlalchemy import select, insert, update, func, Select, VARCHAR, case
 from sqlalchemy.orm import Session, aliased
 from typing import Optional, Tuple
 
 from pathtmpl import get_evaluated_path, DocumentContext, CField
 
+from path_tmpl_worker.ordered_document_cfv import OrderedDocumentCFV
 from path_tmpl_worker import models
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT, CTYPE_FOLDER
 from path_tmpl_worker.db.orm import (
@@ -43,85 +43,114 @@ def get_docs_count_by_type(session: Session, type_id: uuid.UUID):
     return session.scalars(stmt).one()
 
 
-STMT = """
-    SELECT node.title,
-        node.parent_id,
-        doc.basetreenode_ptr_id AS doc_id,
-        doc.document_type_id,
-        cf.cf_id AS cf_id,
-        cf.cf_name,
-        cf.cf_type AS cf_type,
-        cf.cf_extra_data,
-        cfv.id AS cfv_id,
-        CASE
-            WHEN(cf.cf_type = 'monetary') THEN cfv.value_monetary
-            WHEN(cf.cf_type = 'text') THEN cfv.value_text
-            WHEN(cf.cf_type = 'date') THEN cfv.value_date
-            WHEN(cf.cf_type = 'boolean') THEN cfv.value_boolean
-        END AS cf_value
-    FROM core_document AS doc
-    JOIN core_basetreenode AS node
-      ON node.id == doc.basetreenode_ptr_id
-    JOIN document_type_custom_field AS dtcf ON dtcf.document_type_id = doc.document_type_id
-    JOIN(
-        SELECT
-            sub_cf1.id AS cf_id,
-            sub_cf1.name AS cf_name,
-            sub_cf1.type AS cf_type,
-            sub_cf1.extra_data AS cf_extra_data
-        FROM document_types AS sub_dt1
-        JOIN document_type_custom_field AS sub_dtcf1
-            ON sub_dtcf1.document_type_id = sub_dt1.id
-        JOIN custom_fields AS sub_cf1
-            ON sub_cf1.id = sub_dtcf1.custom_field_id
-        WHERE sub_dt1.id = :document_type_id
-    ) AS cf ON cf.cf_id = dtcf.custom_field_id
-    LEFT OUTER JOIN custom_field_values AS cfv
-        ON cfv.field_id = cf.cf_id AND cfv.document_id = doc_id
-    WHERE doc.document_type_id = :document_type_id
-"""
+def _select_cf() -> Select:
+    stmt = (
+        select(
+            CustomField.id,
+            CustomField.name,
+            CustomField.type,
+            CustomField.extra_data,
+        )
+        .select_from(Document)
+        .join(
+            DocumentTypeCustomField,
+            DocumentTypeCustomField.document_type_id == Document.document_type_id,
+        )
+        .join(
+            CustomField,
+            CustomField.id == DocumentTypeCustomField.custom_field_id,
+        )
+    )
 
-PAGINATION = " LIMIT {limit} OFFSET {offset} "
+    return stmt
+
+
+def select_cf_by_document_type(document_type_id: uuid.UUID) -> Select:
+    """Returns SqlAlchemy selector for document custom fields"""
+    stmt = (
+        _select_cf()
+        .where(Document.document_type_id == document_type_id)
+        .group_by(CustomField.id)
+    )
+
+    return stmt
+
+
+def select_docs_by_type(
+    document_type_id: uuid.UUID,
+    user_id: uuid.UUID,
+    limit: int,
+    offset: int,
+) -> Select:
+    assoc = aliased(DocumentTypeCustomField, name="assoc")
+    doc = aliased(Document, name="doc")
+    cf = select_cf_by_document_type(document_type_id).subquery("cf")
+    cfv = aliased(CustomFieldValue, name="cfv")
+
+    base_stmt = (
+        select(
+            doc.title,
+            doc.id.label("doc_id"),
+            doc.document_type_id.label("document_type_id"),
+            doc.parent_id,
+            cf.c.name.label("cf_name"),
+            cf.c.type.label("cf_type"),
+            case(
+                (cf.c.type == "monetary", func.cast(cfv.value_monetary, VARCHAR)),
+                (cf.c.type == "text", func.cast(cfv.value_text, VARCHAR)),
+                (
+                    cf.c.type == "date",
+                    func.substr(func.cast(cfv.value_date, VARCHAR), 0, DATE_LEN),
+                ),
+                (cf.c.type == "boolean", func.cast(cfv.value_boolean, VARCHAR)),
+            ).label("cf_value"),
+        )
+        .select_from(doc)
+        .join(assoc, assoc.document_type_id == doc.document_type_id)
+        .join(cf, cf.c.id == assoc.custom_field_id)
+        .join(
+            cfv, (cfv.field_id == cf.c.id) & (cfv.document_id == doc.id), isouter=True
+        )
+    )
+
+    stmt = base_stmt.where(
+        doc.document_type_id == document_type_id, doc.user_id == user_id
+    )
+    return stmt.limit(limit).offset(offset)
 
 
 def get_docs_by_type(
     session: Session,
     document_type_id: uuid.UUID,
+    user_id: uuid.UUID,
     page_number: int = 1,
     page_size: int = 300,
 ) -> list[models.DocumentCFV]:
-    str_type_id = str(document_type_id).replace("-", "")
-    results = []
+
     cf_count = document_type_cf_count(session, document_type_id=document_type_id)
 
-    stmt = STMT + PAGINATION.format(
-        limit=cf_count * page_size, offset=cf_count * (page_number - 1) * page_size
+    stmt = select_docs_by_type(
+        document_type_id=document_type_id,
+        user_id=user_id,
+        limit=cf_count * page_size,
+        offset=cf_count * (page_number - 1) * page_size,
     )
-    params = {"document_type_id": str_type_id}
-    rows = session.execute(text(stmt), params)
+    rows = session.execute(stmt)
 
-    for document_id, group in itertools.groupby(rows, lambda r: r.doc_id):
-        items = list(group)
-        custom_fields = []
-
-        for item in items:
-            if item.cf_type == "date":
-                value = str2date(item.cf_value)
-            else:
-                value = item.cf_value
-            custom_fields.append((item.cf_name, value))
-
-        results.append(
-            models.DocumentCFV(
-                id=uuid.UUID(document_id),
-                title=items[0].title,
-                parent_id=items[0].parent_id,
-                document_type_id=uuid.UUID(items[0].document_type_id),
-                custom_fields=custom_fields,
-            )
+    ordered_doc_cfvs = OrderedDocumentCFV()
+    for row in rows:
+        entry = models.DocumentCFVRow(
+            title=row.title,
+            doc_id=row.doc_id,
+            parent_id=row.parent_id,
+            document_type_id=row.document_type_id,
+            cf_name=row.cf_name,
+            cf_type=row.cf_type,
+            cf_value=row.cf_value,
         )
+        ordered_doc_cfvs.add(entry)
 
-    return results
+    return list(ordered_doc_cfvs)
 
 
 def get_user(session: Session, document_id: uuid.UUID) -> User:

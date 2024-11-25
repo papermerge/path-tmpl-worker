@@ -146,7 +146,12 @@ class DocumentType(Base):
     custom_fields: Mapped[list["CustomField"]] = relationship(  #  noqa: F821
         secondary="document_types_custom_fields"
     )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("name", "user_id", name="unique document type per user"),
+    )
 
 
 class CustomField(Base):
