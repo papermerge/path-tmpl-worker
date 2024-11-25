@@ -73,7 +73,11 @@ def move_documents(
 
     for page_number in range(1, number_of_pages + 1):
         doc_cfvs: list[DocumentCFV] = db.get_docs_by_type(
-            db_session, document_type_id, page_number=page_number, page_size=page_size
+            db_session,
+            document_type_id,
+            page_number=page_number,
+            page_size=page_size,
+            user_id=user_id,
         )
         updates = []
         for doc_cfv in doc_cfvs:
@@ -114,7 +118,7 @@ def apply_updates(
         v = {
             "id": item.document_id,
             "parent_id": target_folder.id,
-            "title": item.ev_path.name,
+            "title": PurePath(item.ev_path.strip()).name,
         }
         update_values.append(v)
         target_folder_ids.append(target_folder.id)
