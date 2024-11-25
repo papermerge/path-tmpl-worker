@@ -70,7 +70,6 @@ def move_documents(
     total_moved = 0
     source_folder_ids = set()
     target_folder_ids = set()
-
     for page_number in range(1, number_of_pages + 1):
         doc_cfvs: list[DocumentCFV] = db.get_docs_by_type(
             db_session,

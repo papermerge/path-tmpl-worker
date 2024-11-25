@@ -39,7 +39,7 @@ def make_custom_field(db_session: Session):
 @pytest.fixture
 def make_document_type_groceries(db_session: Session, make_custom_field):
 
-    def _maker(title: str, path_template: str | None = None):
+    def _maker(title: str, user_id: uuid.UUID, path_template: str | None = None):
         cf1 = make_custom_field(name="Shop", type=models.CustomFieldType.text)
         cf2 = make_custom_field(name="Total", type=models.CustomFieldType.monetary)
         cf3 = make_custom_field(name="EffectiveDate", type=models.CustomFieldType.date)
@@ -47,6 +47,7 @@ def make_document_type_groceries(db_session: Session, make_custom_field):
         dtype = orm.DocumentType(
             id=uuid.uuid4(),
             name=title,
+            user_id=user_id,
             custom_fields=[cf1, cf2, cf3],
             path_template=path_template,
         )
@@ -61,11 +62,20 @@ def make_document_type_groceries(db_session: Session, make_custom_field):
 @pytest.fixture()
 def make_receipt(db_session, make_user, make_document_type_groceries):
 
-    def _maker(title: str, path_template: str | None = None):
-        user = make_user("john")
-        dtype = make_document_type_groceries(
-            title="Groceries", path_template=path_template
-        )
+    def _maker(
+        title: str,
+        path_template: str | None = None,
+        dtype: orm.DocumentType | None = None,
+        user: orm.User | None = None,
+    ):
+        if user is None:
+            user = make_user("john")
+
+        if dtype is None:
+            dtype = make_document_type_groceries(
+                title="Groceries", path_template=path_template, user_id=user.id
+            )
+
         doc_id = uuid.uuid4()
         doc = orm.Document(
             id=doc_id,

@@ -116,7 +116,6 @@ def select_docs_by_type(
     stmt = base_stmt.where(
         doc.document_type_id == document_type_id, doc.user_id == user_id
     )
-
     return stmt.limit(limit).offset(offset)
 
 
@@ -127,6 +126,7 @@ def get_docs_by_type(
     page_number: int = 1,
     page_size: int = 300,
 ) -> list[models.DocumentCFV]:
+
     cf_count = document_type_cf_count(session, document_type_id=document_type_id)
 
     stmt = select_docs_by_type(
