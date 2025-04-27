@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "path-tmpl-worker"
-version = "0.3.0"
+version = "0.4.0"
 description = "Path template worker"
 authors = ["Eugen Ciur <eugen@papermerge.com>"]
 readme = "README.md"
@@ -32,7 +32,7 @@ pathtmpl = 'path_tmpl_worker.cli.main:app'
 
 
 [tool.taskipy.tasks]
-worker = "celery -A path_tmpl_worker.celery_app worker -E -c 4"
+worker = "celery -A path_tmpl_worker.celery_app worker -E -c 4 -Q path_tmpl"
 
 [build-system]
 requires = ["poetry-core"]

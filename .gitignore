@@ -1,6 +1,6 @@
 *.pid
 .idea/
-.env
+.envok.yaml
 .envrc
 build/
 .eggs/
