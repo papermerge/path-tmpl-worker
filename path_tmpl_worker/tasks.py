@@ -23,12 +23,10 @@ redis_instance = redis.from_url(settings.papermerge__redis__url)
 
 
 @shared_task(name=constants.PATH_TMPL_MOVE_DOCUMENT)
-def move_document(document_id: str, user_id: str):
+def move_document(document_id: str):
     try:
         with Session() as db_session:
-            message = api.move_document(
-                db_session, uuid.UUID(document_id), uuid.UUID(user_id)
-            )
+            message = api.move_document(db_session, uuid.UUID(document_id))
             ev = Event[DocumentMovedNotification](
                 type=NOTIF_DOCUMENT_MOVED, payload=message
             )
@@ -42,13 +40,11 @@ def move_document(document_id: str, user_id: str):
 
 
 @shared_task(name=constants.PATH_TMPL_MOVE_DOCUMENTS)
-def move_documents(document_type_id: str, user_id: str):
+def move_documents(document_type_id: str):
     """Move docs in bulk"""
     try:
         with Session() as db_session:
-            payload = api.move_documents(
-                db_session, uuid.UUID(document_type_id), uuid.UUID(user_id)
-            )
+            payload = api.move_documents(db_session, uuid.UUID(document_type_id))
             ev = Event[DocumentsMovedNotification](
                 type=NOTIF_DOCUMENTS_MOVED, payload=payload
             )

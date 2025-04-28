@@ -75,7 +75,7 @@ CustomFieldTupleType: TypeAlias = tuple[CFNameType, CFValueType, CustomFieldType
 
 
 class DocumentCFV(BaseModel):
-    id: uuid.UUID
+    id: uuid.UUID  # document ID
     parent_id: uuid.UUID
     title: str
     document_type_id: uuid.UUID | None = None
@@ -112,14 +112,12 @@ class DocumentMovedNotification(BaseModel):
     old_document_title: str
     new_document_title: str
     document_id: uuid.UUID
-    user_id: uuid.UUID
 
 
 class DocumentsMovedNotification(BaseModel):
     count: int
     document_type_name: str
     document_type_id: uuid.UUID
-    user_id: uuid.UUID
     source_folder_ids: list[uuid.UUID]
     target_folder_ids: list[uuid.UUID]
 

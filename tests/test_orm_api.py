@@ -10,10 +10,9 @@ from path_tmpl_worker.db import get_doc_ctx, update_doc_cfv
 from path_tmpl_worker import constants
 from path_tmpl_worker.db.orm import Folder
 from path_tmpl_worker.db.api import (
-    get_user_home,
+    get_home,
     mkdir_node,
     mkdir,
-    get_user,
     get_path_template,
     mkdir_target,
 )
@@ -65,32 +64,27 @@ def test_get_doc_non_emtpy_cf(db_session: Session, make_receipt):
     assert doc.cf["Total"] == 10.99
 
 
-def test_get_user_home(db_session: Session, make_user):
-    user = make_user("john")
-    home = get_user_home(db_session, user.id)
-
-    assert home.title == user.home_folder.title
-    assert home.id == user.home_folder.id
-
-
 def test_make_node_my_documents(db_session: Session, make_user):
     user = make_user("john")
-    home = get_user_home(db_session, user.id)
     mydocs = mkdir_node(
-        db_session, PurePath("My Documents"), parent=home, user_id=user.id
+        db_session,
+        PurePath("My Documents"),
+        parent=user.home_folder,
+        user_id=user.id,
+        group_id=None,
     )
 
-    assert mydocs.parent_id == home.id
+    assert mydocs.parent_id == user.home_folder.id
     assert mydocs.title == "My Documents"
     assert mydocs.user == user
 
 
-def test_mkdir_basic(db_session: Session, make_user):
+def test_mkdir_basic(db_session: Session, make_user, make_document):
     user = make_user("john")
     path_to_make = "/home/My Documents/Invoices/file.pdf"
-    last_node = mkdir(db_session, path_to_make, user_id=user.id)
+    last_node = mkdir(db_session, path_to_make, user_id=user.id, group_id=None)
 
-    home = get_user_home(db_session, user_id=user.id)
+    home = get_home(db_session, user_id=user.id, group_id=None)
     invoices = (
         db_session.execute(select(Folder).where(Folder.title == "Invoices"))
         .scalars()
@@ -130,14 +124,6 @@ def test_mkdir_call_multiple_times(db_session: Session, make_user):
     assert last_node2.id == last_node1.id
     assert last_node3.title == last_node2.title
     assert last_node3.id == last_node2.id
-
-
-def test_get_user(db_session: Session, make_user, make_document):
-    user = make_user("john")
-    doc = make_document(title="letter.pdf", user_id=user.id)
-
-    document_user = get_user(db_session, doc.id)
-    assert document_user == user
 
 
 def test_get_template_path_with_existing_path_tmpl(db_session: Session, make_receipt):

@@ -18,6 +18,7 @@ from path_tmpl_worker.db.orm import (
     Folder,
     DocumentType,
     DocumentTypeCustomField,
+    Group,
 )
 
 
@@ -78,7 +79,6 @@ def select_cf_by_document_type(document_type_id: uuid.UUID) -> Select:
 
 def select_docs_by_type(
     document_type_id: uuid.UUID,
-    user_id: uuid.UUID,
     limit: int,
     offset: int,
 ) -> Select:
@@ -113,16 +113,13 @@ def select_docs_by_type(
         )
     )
 
-    stmt = base_stmt.where(
-        doc.document_type_id == document_type_id, doc.user_id == user_id
-    )
+    stmt = base_stmt.where(doc.document_type_id == document_type_id)
     return stmt.limit(limit).offset(offset)
 
 
 def get_docs_by_type(
     session: Session,
     document_type_id: uuid.UUID,
-    user_id: uuid.UUID,
     page_number: int = 1,
     page_size: int = 300,
 ) -> list[models.DocumentCFV]:
@@ -131,7 +128,6 @@ def get_docs_by_type(
 
     stmt = select_docs_by_type(
         document_type_id=document_type_id,
-        user_id=user_id,
         limit=cf_count * page_size,
         offset=cf_count * (page_number - 1) * page_size,
     )
@@ -151,11 +147,6 @@ def get_docs_by_type(
         ordered_doc_cfvs.add(entry)
 
     return list(ordered_doc_cfvs)
-
-
-def get_user(session: Session, document_id: uuid.UUID) -> User:
-    stmt = select(User).join(Document).where(Document.id == document_id)
-    return session.execute(stmt).scalars().one()
 
 
 def get_document_type(session: Session, document_type_id: uuid.UUID) -> DocumentType:
@@ -348,13 +339,34 @@ def update_doc_cfv(
     return items
 
 
-def get_user_home(session: Session, user_id: uuid.UUID) -> Folder:
-    stmt = select(User).where(User.id == user_id)
-    user = session.execute(stmt).scalars().one()
-    return user.home_folder
+def get_home(
+    session: Session,
+    user_id: uuid.UUID | None = None,
+    group_id: uuid.UUID | None = None,
+) -> Folder:
+
+    if group_id is not None:
+        stmt = select(Group).where(Group.id == group_id)
+        group = session.execute(stmt).scalars().one()
+        home_id = group.home_folder_id
+    else:
+        stmt = select(User).where(User.id == user_id)
+        user = session.execute(stmt).scalars().one()
+        home_id = user.home_folder_id
+
+    stmt = select(Folder).where(Folder.id == home_id)
+    home = session.execute(stmt).scalars().one()
+
+    return home
 
 
-def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.UUID):
+def mkdir_node(
+    session: Session,
+    path: PurePath,
+    parent: Folder,
+    user_id: uuid.UUID | None = None,
+    group_id: uuid.UUID | None = None,
+):
     if path in [PurePath("."), PurePath("/"), PurePath("home")]:
         return parent
 
@@ -366,7 +378,6 @@ def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.U
             select(Folder).where(
                 Folder.parent_id == parent.id,
                 Folder.title == path.name,
-                Folder.user_id == user_id,
             )
         )
         .scalars()
@@ -379,6 +390,7 @@ def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.U
             title=path.name,
             parent_id=parent.id,
             user_id=user_id,
+            group_id=group_id,
             lang="en",
             ctype=CTYPE_FOLDER,
         )
@@ -388,24 +400,31 @@ def mkdir_node(session: Session, path: PurePath, parent: Folder, user_id: uuid.U
     return folder
 
 
-def mkdir(session: Session, path: str, user_id: uuid.UUID) -> Folder:
+def mkdir(
+    session: Session,
+    path: str,
+    user_id: uuid.UUID | None = None,
+    group_id: uuid.UUID | None = None,
+) -> Folder:
     """makes all node folders specified in path
 
-    It is assumed that Top-most folder is user's `/home/` folder.
+    It is assumed that Top-most folder is `/home/` folder.
     If path does not start with /home/
     it will implicitly assume '/home/' already exists and put
     created nodes under that folder.
     E.g.
 
     mkdir('/My Documents/Here/invoice.pdf', 'uuid1') will
-    create folders 'My Documents` and put it in uuid1 user's home folder i.e.
-    existing /home/ folder belonging to user with uuid1.
+    create folders 'My Documents` and put it in uuid1 user (or group, depending
+    on who owns the document) home folder i.e.
+    existing /home/ folder belonging to user/group with uuid1.
     Then it will create folder `Here` and put it under /home/My Documents/
-    of the user `uuid1`.
+    of the user/group `uuid1`.
 
-    If path is not absolute, it will be considered relative to user's home folder
+    If path is not absolute, it will be considered relative to user/group's home folder
     """
-    parent = get_user_home(session, user_id)
+
+    parent = get_home(session, user_id=user_id, group_id=group_id)
 
     stripped_path = path.strip()
     if stripped_path.endswith("/"):
@@ -415,7 +434,9 @@ def mkdir(session: Session, path: str, user_id: uuid.UUID) -> Folder:
         parents = PurePath(stripped_path).parents
 
     for node in reversed(parents):
-        parent = mkdir_node(session, node, parent=parent, user_id=user_id)
+        parent = mkdir_node(
+            session, node, parent=parent, user_id=user_id, group_id=group_id
+        )
 
     return parent
 
@@ -423,8 +444,11 @@ def mkdir(session: Session, path: str, user_id: uuid.UUID) -> Folder:
 def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[str, Folder]:
     doc = get_doc_ctx(session, document_id)
     path_template = get_path_template(session, document_id)
-    user = get_user(session, document_id)
     ev_path = get_evaluated_path(doc, path_template)
-    target_folder = mkdir(session, path=ev_path, user_id=user.id)
+    stmt = select(Document).where(Document.id == document_id)
+    doc = session.execute(stmt).scalars().one()
+    target_folder = mkdir(
+        session, path=ev_path, user_id=doc.user_id, group_id=doc.group_id
+    )
 
     return ev_path, target_folder
