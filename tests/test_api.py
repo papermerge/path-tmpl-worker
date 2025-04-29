@@ -11,7 +11,7 @@ def test_move_document(db_session, make_receipt):
         /home/My Documents/Receipts/
     """
     doc = make_receipt(title="bon.pdf", path_template=template_path)
-    api.move_document(db_session, document_id=doc.id, user_id=doc.user_id)
+    api.move_document(db_session, document_id=doc.id)
 
     refreshed_doc = db_session.execute(
         select(orm.Document).where(orm.Document.id == doc.id)
@@ -30,9 +30,7 @@ def test_move_documents(db_session, make_receipt):
         /home/My Documents/Receipts/
     """
     doc = make_receipt(title="bon.pdf", path_template=template_path)
-    api.move_documents(
-        db_session, document_type_id=doc.document_type_id, user_id=doc.user_id
-    )
+    api.move_documents(db_session, document_type_id=doc.document_type_id)
 
     refreshed_doc = db_session.execute(
         select(orm.Document).where(orm.Document.id == doc.id)
@@ -57,9 +55,7 @@ def test_move_documents_with_one_doc_with_cfv(db_session, make_receipt):
     custom_fields = {"Total": 10.99, "Shop": "rewe", "EffectiveDate": "2024-11-18"}
     dbapi.update_doc_cfv(db_session, document_id=doc.id, custom_fields=custom_fields)
 
-    api.move_documents(
-        db_session, document_type_id=doc.document_type_id, user_id=doc.user_id
-    )
+    api.move_documents(db_session, document_type_id=doc.document_type_id)
 
     refreshed_doc = db_session.execute(
         select(orm.Document).where(orm.Document.id == doc.id)
@@ -93,7 +89,7 @@ def test_move_documents_with_two_docs_with_cfv(
     custom_fields2 = {"Total": 5.25, "Shop": "lidl", "EffectiveDate": "2024-01-13"}
     dbapi.update_doc_cfv(db_session, document_id=doc2.id, custom_fields=custom_fields2)
 
-    api.move_documents(db_session, document_type_id=dtype.id, user_id=doc1.user_id)
+    api.move_documents(db_session, document_type_id=dtype.id)
 
     refreshed_doc1 = db_session.execute(
         select(orm.Document).where(orm.Document.id == doc1.id)

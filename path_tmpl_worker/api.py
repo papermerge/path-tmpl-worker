@@ -18,7 +18,7 @@ PAGE_SIZE = 1000
 
 
 def move_document(
-    db_session: Session, document_id: uuid.UUID, user_id: uuid.UUID
+    db_session: Session, document_id: uuid.UUID
 ) -> DocumentMovedNotification:
     """Move document
 
@@ -44,7 +44,6 @@ def move_document(
     db_session.commit()
     return DocumentMovedNotification(
         document_id=document_id,
-        user_id=user_id,
         old_document_title=old_document_title,
         new_document_title=new_document_title,
         source_folder_id=source_folder_id,
@@ -53,7 +52,7 @@ def move_document(
 
 
 def move_documents(
-    db_session: Session, document_type_id: uuid.UUID, user_id: uuid.UUID
+    db_session: Session, document_type_id: uuid.UUID
 ) -> DocumentsMovedNotification:
     """Move documents in bulk
 
@@ -70,15 +69,16 @@ def move_documents(
     total_moved = 0
     source_folder_ids = set()
     target_folder_ids = set()
+
     for page_number in range(1, number_of_pages + 1):
         doc_cfvs: list[DocumentCFV] = db.get_docs_by_type(
             db_session,
             document_type_id,
             page_number=page_number,
             page_size=page_size,
-            user_id=user_id,
         )
         updates = []
+
         for doc_cfv in doc_cfvs:
             custom_fields = [
                 CField(name=cf[0], value=cf[1]) for cf in doc_cfv.custom_fields
@@ -92,7 +92,11 @@ def move_documents(
                 BulkUpdate(document_id=ctx.id, ev_path=ev_path, title=ctx.title)
             )
 
-        target_folder_ids.update(apply_updates(db_session, updates, user_id=user_id))
+        target_folder_ids.update(
+            apply_updates(
+                db_session, updates, user_id=dtype.user_id, group_id=dtype.group_id
+            )
+        )
         total_moved += len(updates)
 
     db_session.commit()
@@ -102,12 +106,14 @@ def move_documents(
         count=total_moved,
         document_type_name=dtype.name,
         document_type_id=dtype.id,
-        user_id=user_id,
     )
 
 
 def apply_updates(
-    db_session: Session, updates: list[BulkUpdate], user_id: uuid.UUID
+    db_session: Session,
+    updates: list[BulkUpdate],
+    user_id: uuid.UUID | None = None,
+    group_id: uuid.UUID | None = None,
 ) -> list[uuid.UUID]:
     if len(updates) < 1:
         return []
@@ -116,7 +122,9 @@ def apply_updates(
     update_values = []
     for item in updates:
         stripped_ev_path = item.ev_path.strip()
-        target_folder = db.mkdir(db_session, stripped_ev_path, user_id)
+        target_folder = db.mkdir(
+            db_session, stripped_ev_path, user_id=user_id, group_id=group_id
+        )
         if stripped_ev_path.endswith("/"):
             v = {
                 "id": item.document_id,

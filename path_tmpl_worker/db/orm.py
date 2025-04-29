@@ -77,7 +77,17 @@ class Node(Base):
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey(
             "users.id", use_alter=True, name="nodes_user_id_fkey", ondelete="CASCADE"
-        )
+        ),
+        nullable=True,
+    )
+    group_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "groups.id",
+            use_alter=True,
+            name="nodes_group_id_fkey",
+            ondelete="CASCADE",
+        ),
+        nullable=True,
     )
     parent_id: Mapped[UUID] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
@@ -146,7 +156,9 @@ class DocumentType(Base):
     custom_fields: Mapped[list["CustomField"]] = relationship(  #  noqa: F821
         secondary="document_types_custom_fields"
     )
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=True)
+    group_id: Mapped[UUID] = mapped_column(ForeignKey("groups.id"), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
     __table_args__ = (
@@ -180,3 +192,19 @@ class CustomFieldValue(Base):
 
     def __repr__(self):
         return f"CustomFieldValue(ID={self.id})"
+
+
+class Group(Base):
+    __tablename__ = "groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(unique=True)
+    home_folder_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "folders.node_id",
+            deferrable=True,
+            ondelete="CASCADE",
+            name="groups_home_folder_id_fkey",
+        ),
+        nullable=True,
+    )
