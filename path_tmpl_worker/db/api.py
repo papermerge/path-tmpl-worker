@@ -117,6 +117,39 @@ def select_docs_by_type(
     return stmt.limit(limit).offset(offset)
 
 
+def get_docs_by_type_no_cf(
+    session: Session,
+    type_id: uuid.UUID,
+    limit: int,
+    offset: int,
+) -> list[models.DocumentCFV]:
+    """Return all documents of specific type (with their empty custom fields)
+
+    This method works correctly only in case document type does
+    not have custom fields
+    """
+    stmt = (
+        select(Document)
+        .where(Document.document_type_id == type_id)
+        .limit(limit)
+        .offset(offset)
+    )
+
+    results = []
+
+    for doc in session.execute(stmt).scalars():
+        item = models.DocumentCFV(
+            id=doc.id,
+            title=doc.title,
+            parent_id=doc.parent_id,
+            document_type_id=type_id,
+            custom_fields=[],
+        )
+        results.append(item)
+
+    return results
+
+
 def get_docs_by_type(
     session: Session,
     document_type_id: uuid.UUID,
@@ -125,6 +158,14 @@ def get_docs_by_type(
 ) -> list[models.DocumentCFV]:
 
     cf_count = document_type_cf_count(session, document_type_id=document_type_id)
+
+    if cf_count == 0:
+        return get_docs_by_type_no_cf(
+            session,
+            type_id=document_type_id,
+            limit=page_size,
+            offset=(page_number - 1) * page_size,
+        )
 
     stmt = select_docs_by_type(
         document_type_id=document_type_id,
