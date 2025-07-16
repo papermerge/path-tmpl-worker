@@ -64,7 +64,9 @@ def move_documents(
     """
     dtype = db.get_document_type(db_session, document_type_id)
     total_count = db.get_docs_count_by_type(db_session, document_type_id)
-    page_size = min(PAGE_SIZE, total_count)
+    # May happen that `total_count == 0`
+    page_size = min(PAGE_SIZE, total_count) or PAGE_SIZE
+    # to avoid `page_size` == 0 we do: page_size = min(...) or PAGE_SIZE
     number_of_pages = int(total_count / page_size) + 1
     total_moved = 0
     source_folder_ids = set()
