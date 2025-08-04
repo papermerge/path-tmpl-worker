@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.13"
-sqlalchemy = "^2.0.36"
+sqlalchemy = "^2.0.42"
 pydantic-settings = "^2.6"
 pydantic = "^2.9"
 typer = "^0.13.1"
