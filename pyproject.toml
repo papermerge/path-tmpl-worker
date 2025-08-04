@@ -24,7 +24,7 @@ pg = ["psycopg2"]
 databases = ["mysqlclient", "psycopg2"]
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
+pytest = "^8.4.1"
 taskipy = "^1.14.1"
 
 [tool.poetry.scripts]
