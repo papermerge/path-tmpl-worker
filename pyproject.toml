@@ -25,7 +25,7 @@ databases = ["mysqlclient", "psycopg2"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
-taskipy = "^1.13.0"
+taskipy = "^1.14.1"
 
 [tool.poetry.scripts]
 pathtmpl = 'path_tmpl_worker.cli.main:app'
