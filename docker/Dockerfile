@@ -3,11 +3,14 @@ FROM python:3.13-alpine
 ENV APP_DIR=/app
 WORKDIR ${APP_DIR}
 
-RUN apk update && apk add linux-headers \
+RUN apk update && apk add --no-cache linux-headers \
     python3-dev \
     gcc \
     libc-dev \
-    libpq-dev
+    libpq-dev && \
+    # ensure all packages are up-to-date
+    apk upgrade --no-cache && \
+    rm -rf /var/cache/apk/*
 
 COPY poetry.lock pyproject.toml README.md ${APP_DIR}/
 COPY path_tmpl_worker/ ${APP_DIR}/path_tmpl_worker/
