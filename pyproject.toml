@@ -14,7 +14,7 @@ typer = "^0.13.1"
 pathtmpl = "0.2.0"
 celery = {version = "^5.4", extras = ["redis"]}
 pyyaml = "^6.0.2"
-redis = "^5.2"
+redis = "^5.3"
 psycopg2 = { version = "^2.9.2", optional = true}
 mysqlclient = {version = "^2.2", optional = true}
 
