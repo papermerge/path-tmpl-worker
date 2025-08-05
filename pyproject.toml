@@ -7,14 +7,14 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.13"
-sqlalchemy = "^2.0.36"
-pydantic-settings = "^2.6"
-pydantic = "^2.9"
-typer = "^0.13.1"
+sqlalchemy = "^2.0.42"
+pydantic-settings = "^2.10"
+pydantic = "^2.11"
+typer = "^0.16.0"
 pathtmpl = "0.2.0"
-celery = {version = "^5.4", extras = ["redis"]}
+celery = {version = "^5.5", extras = ["redis"]}
 pyyaml = "^6.0.2"
-redis = "^5.2"
+redis = "^5.3"
 psycopg2 = { version = "^2.9.2", optional = true}
 mysqlclient = {version = "^2.2", optional = true}
 
@@ -24,8 +24,8 @@ pg = ["psycopg2"]
 databases = ["mysqlclient", "psycopg2"]
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
-taskipy = "^1.13.0"
+pytest = "^8.4.1"
+taskipy = "^1.14.1"
 
 [tool.poetry.scripts]
 pathtmpl = 'path_tmpl_worker.cli.main:app'

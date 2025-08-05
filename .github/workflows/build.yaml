@@ -30,7 +30,7 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build ${{ github.ref_name }} Prod Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           push: true
           tags: papermerge/path-tmpl-worker:${{ github.ref_name }}
