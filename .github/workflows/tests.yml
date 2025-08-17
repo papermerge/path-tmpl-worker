@@ -31,4 +31,4 @@ jobs:
           pip install poetry
           poetry install && poetry run pytest
         env:
-          PAPERMERGE__DATABASE__URL: 'postgresql://pmguser:pmgpass@localhost:5432/test_pmgdb'
+          PAPERMERGE__DATABASE__URL: 'postgresql+psycopg://pmguser:pmgpass@localhost:5432/test_pmgdb'
