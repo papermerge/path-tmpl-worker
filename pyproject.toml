@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "path-tmpl-worker"
-version = "0.4.0"
+version = "0.4.1"
 description = "Path template worker"
 authors = ["Eugen Ciur <eugen@papermerge.com>"]
 readme = "README.md"

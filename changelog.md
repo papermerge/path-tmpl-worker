@@ -1,10 +1,14 @@
 # Changelog
 
-## [0.4.1] - 2025-08-04
+## [0.4.1] - 2025-08-17
 
 ### Adds
 
 - Updates external libraries
+
+## Removes
+
+- Drops mysql dependency. Now is PostgreSql dependency only.
 
 ## [0.4] - 2025-05-01
 
