@@ -15,10 +15,7 @@ pathtmpl = "0.2.0"
 celery = {version = "^5.5", extras = ["redis"]}
 pyyaml = "^6.0.2"
 redis = "^5.3"
-psycopg2 = { version = "^2.9.2", optional = true}
-
-[tool.poetry.extras]
-pg = ["psycopg2"]
+psycopg = { version = "^3.2", extras = ["binary"] }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
