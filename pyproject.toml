@@ -16,12 +16,9 @@ celery = {version = "^5.5", extras = ["redis"]}
 pyyaml = "^6.0.2"
 redis = "^5.3"
 psycopg2 = { version = "^2.9.2", optional = true}
-mysqlclient = {version = "^2.2", optional = true}
 
 [tool.poetry.extras]
-mysql = ["mysqlclient"]
 pg = ["psycopg2"]
-databases = ["mysqlclient", "psycopg2"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
