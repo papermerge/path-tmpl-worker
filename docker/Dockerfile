@@ -18,7 +18,7 @@ COPY path_tmpl_worker/ ${APP_DIR}/path_tmpl_worker/
 RUN pip install --upgrade poetry
 
 COPY poetry.lock pyproject.toml app/
-RUN poetry install -E pg
+RUN poetry install
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
