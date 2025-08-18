@@ -6,6 +6,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 SQLALCHEMY_DATABASE_URL = os.environ.get("PAPERMERGE__DATABASE__URL")
+
+SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
+    "postgresql://", "postgresql+psycopg://", 1
+)
+
 connect_args = {}
 logger = logging.getLogger(__name__)
 
