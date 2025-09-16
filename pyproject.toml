@@ -10,7 +10,7 @@ python = "^3.13"
 sqlalchemy = "^2.0.43"
 pydantic-settings = "^2.10"
 pydantic = "^2.11"
-typer = "^0.17.3"
+typer = "^0.17.4"
 pathtmpl = "0.2.0"
 celery = {version = "^5.5", extras = ["redis"]}
 pyyaml = "^6.0.2"
