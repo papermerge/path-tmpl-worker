@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.13"
 sqlalchemy = "^2.0.44"
 pydantic-settings = "^2.11"
-pydantic = "^2.11"
+pydantic = "^2.12"
 typer = "^0.19.2"
 pathtmpl = "0.2.0"
 celery = {version = "^5.5", extras = ["redis"]}
