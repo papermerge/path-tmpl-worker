@@ -18,7 +18,7 @@ redis = "^5.3"
 psycopg = { version = "^3.3", extras = ["binary"] }
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^9.0.0"
+pytest = "^9.0.1"
 taskipy = "^1.14.1"
 
 [tool.poetry.scripts]
