@@ -12,7 +12,7 @@ pydantic-settings = "^2.11"
 pydantic = "^2.12"
 typer = "^0.20.0"
 pathtmpl = "0.2.0"
-celery = {version = "^5.5", extras = ["redis"]}
+celery = {version = "^5.6", extras = ["redis"]}
 pyyaml = "^6.0.3"
 redis = "^5.3"
 psycopg = { version = "^3.3", extras = ["binary"] }
