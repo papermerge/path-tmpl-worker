@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     papermerge__redis__url: str | None = None
     papermerge__main__logging_cfg: Path | None = None
-    papermerge__database__url: str = "sqlite:////db/db.sqlite3"
+    papermerge__database__url: str
 
 
 @lru_cache()
