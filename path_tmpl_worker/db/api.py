@@ -4,6 +4,7 @@ from typing import List, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
 
 from pathtmpl import Context, get_evaluated_path
 
@@ -245,3 +246,81 @@ def get_ancestors(
     items.reverse()
 
     return items
+
+
+def move_documents(session: Session, document_type_id: uuid.UUID) -> int:
+    """Move all documents of a specific document type.
+
+    For each document:
+    1. Build context from document and its latest version
+    2. Evaluate the path template
+    3. Create target folder structure with same ownership as document
+    4. Move document to target folder
+
+    Returns:
+        Number of documents moved
+    """
+    # Get document type with path template
+    stmt = select(DocumentType).where(DocumentType.id == document_type_id)
+    document_type = session.execute(stmt).scalars().one()
+
+    if not document_type.path_template:
+        return 0
+
+    # Get all documents with their latest version and ownership in one query
+    latest_version_subq = (
+        select(
+            DocumentVersion.document_id,
+            func.max(DocumentVersion.number).label("max_number"),
+        )
+        .group_by(DocumentVersion.document_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(Document, DocumentVersion, Ownership)
+        .join(latest_version_subq, Document.id == latest_version_subq.c.document_id)
+        .join(
+            DocumentVersion,
+            and_(
+                DocumentVersion.document_id == Document.id,
+                DocumentVersion.number == latest_version_subq.c.max_number,
+            ),
+        )
+        .join(
+            Ownership,
+            and_(
+                Ownership.resource_type == "node", Ownership.resource_id == Document.id
+            ),
+        )
+        .where(Document.document_type_id == document_type_id)
+    )
+
+    rows = session.execute(stmt).all()
+
+    if not rows:
+        return 0
+
+    for doc, latest_version, ownership in rows:
+        context = Context(
+            id=doc.id,
+            title=doc.title,
+            file_name=latest_version.file_name,
+            category=document_type.name,
+            year=latest_version.created_at.year,
+            month=latest_version.created_at.month,
+            day=latest_version.created_at.day,
+        )
+
+        evaluated_path = get_evaluated_path(context, document_type.path_template)
+        target_folder = mkdir(session, path=evaluated_path, ownership=ownership)
+
+        stripped_path = evaluated_path.strip()
+        if not stripped_path.endswith("/"):
+            doc.title = PurePath(stripped_path).name
+
+        doc.parent_id = target_folder.id
+
+    session.commit()
+
+    return len(rows)
