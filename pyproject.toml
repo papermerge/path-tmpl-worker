@@ -1,33 +1,34 @@
-[tool.poetry]
+[project]
 name = "path-tmpl-worker"
-version = "0.4.1"
+version = "0.5"
 description = "Path template worker"
-authors = ["Eugen Ciur <eugen@papermerge.com>"]
+authors = [
+    { name = "Eugen Ciur", email = "eugen@papermerge.com" }
+]
 readme = "README.md"
+requires-python = ">=3.13,<4"
+dependencies = [
+    "sqlalchemy",
+    "pydantic-settings",
+    "pydantic",
+    "typer",
+    "pathtmpl",
+    "celery[redis]",
+    "pyyaml",
+    "redis",
+    "asyncpg",
+    "psycopg[binary]"
+]
 
-[tool.poetry.dependencies]
-python = "^3.13"
-sqlalchemy = "^2.0.43"
-pydantic-settings = "^2.10"
-pydantic = "^2.11"
-typer = "^0.16.0"
-pathtmpl = "0.2.0"
-celery = {version = "^5.5", extras = ["redis"]}
-pyyaml = "^6.0.2"
-redis = "^5.3"
-psycopg = { version = "^3.2", extras = ["binary"] }
+[project.scripts]
+pathtmpl = "path_tmpl_worker.cli.main:app"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.4.1"
-taskipy = "^1.14.1"
-
-[tool.poetry.scripts]
-pathtmpl = 'path_tmpl_worker.cli.main:app'
-
+[project.optional-dependencies]
+dev = ["pytest", "taskipy"]
 
 [tool.taskipy.tasks]
 worker = "celery -A path_tmpl_worker.celery_app worker -E -c 4 -Q path_tmpl"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
