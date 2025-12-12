@@ -34,7 +34,7 @@ def move_documents(document_type_id: str):
     """Move docs in bulk"""
     try:
         with Session() as db_session:
-            api.move_documents(db_session, uuid.UUID(document_type_id))
+            db.move_documents(db_session, uuid.UUID(document_type_id))
     except TypeError as ex:
         logger.error(
             f"Error while moving document: {ex}. Double check path template string"
