@@ -16,7 +16,6 @@ dependencies = [
     "celery[redis]",
     "pyyaml",
     "redis",
-    "asyncpg",
     "psycopg[binary]"
 ]
 
