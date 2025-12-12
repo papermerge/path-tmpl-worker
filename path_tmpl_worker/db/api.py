@@ -1,24 +1,19 @@
 import uuid
-from datetime import datetime
 from pathlib import PurePath
-from sqlalchemy import select, insert, update, func, Select, VARCHAR, case
-from sqlalchemy.orm import Session, aliased
-from typing import Optional, Tuple
+from sqlalchemy import select, func
+from sqlalchemy.orm import Session
+from typing import Tuple
 
-from pathtmpl import get_evaluated_path, DocumentContext, CField
+from pathtmpl import get_evaluated_path, Context
 
-from path_tmpl_worker.ordered_document_cfv import OrderedDocumentCFV
-from path_tmpl_worker import models
-from path_tmpl_worker.constants import INCOMING_DATE_FORMAT, CTYPE_FOLDER
 from path_tmpl_worker.db.orm import (
     Document,
-    CustomField,
-    CustomFieldValue,
     User,
     Folder,
     DocumentType,
-    DocumentTypeCustomField,
     Group,
+    DocumentVersion,
+    Ownership,
 )
 
 
@@ -44,152 +39,6 @@ def get_docs_count_by_type(session: Session, type_id: uuid.UUID):
     return session.scalars(stmt).one()
 
 
-def _select_cf() -> Select:
-    stmt = (
-        select(
-            CustomField.id,
-            CustomField.name,
-            CustomField.type,
-            CustomField.extra_data,
-        )
-        .select_from(Document)
-        .join(
-            DocumentTypeCustomField,
-            DocumentTypeCustomField.document_type_id == Document.document_type_id,
-        )
-        .join(
-            CustomField,
-            CustomField.id == DocumentTypeCustomField.custom_field_id,
-        )
-    )
-
-    return stmt
-
-
-def select_cf_by_document_type(document_type_id: uuid.UUID) -> Select:
-    """Returns SqlAlchemy selector for document custom fields"""
-    stmt = (
-        _select_cf()
-        .where(Document.document_type_id == document_type_id)
-        .group_by(CustomField.id)
-    )
-
-    return stmt
-
-
-def select_docs_by_type(
-    document_type_id: uuid.UUID,
-    limit: int,
-    offset: int,
-) -> Select:
-    assoc = aliased(DocumentTypeCustomField, name="assoc")
-    doc = aliased(Document, name="doc")
-    cf = select_cf_by_document_type(document_type_id).subquery("cf")
-    cfv = aliased(CustomFieldValue, name="cfv")
-
-    base_stmt = (
-        select(
-            doc.title,
-            doc.id.label("doc_id"),
-            doc.document_type_id.label("document_type_id"),
-            doc.parent_id,
-            cf.c.name.label("cf_name"),
-            cf.c.type.label("cf_type"),
-            case(
-                (cf.c.type == "monetary", func.cast(cfv.value_monetary, VARCHAR)),
-                (cf.c.type == "text", func.cast(cfv.value_text, VARCHAR)),
-                (
-                    cf.c.type == "date",
-                    func.substr(func.cast(cfv.value_date, VARCHAR), 0, DATE_LEN),
-                ),
-                (cf.c.type == "boolean", func.cast(cfv.value_boolean, VARCHAR)),
-            ).label("cf_value"),
-        )
-        .select_from(doc)
-        .join(assoc, assoc.document_type_id == doc.document_type_id)
-        .join(cf, cf.c.id == assoc.custom_field_id)
-        .join(
-            cfv, (cfv.field_id == cf.c.id) & (cfv.document_id == doc.id), isouter=True
-        )
-    )
-
-    stmt = base_stmt.where(doc.document_type_id == document_type_id)
-    return stmt.limit(limit).offset(offset)
-
-
-def get_docs_by_type_no_cf(
-    session: Session,
-    type_id: uuid.UUID,
-    limit: int,
-    offset: int,
-) -> list[models.DocumentCFV]:
-    """Return all documents of specific type (with their empty custom fields)
-
-    This method works correctly only in case document type does
-    not have custom fields
-    """
-    stmt = (
-        select(Document)
-        .where(Document.document_type_id == type_id)
-        .limit(limit)
-        .offset(offset)
-    )
-
-    results = []
-
-    for doc in session.execute(stmt).scalars():
-        item = models.DocumentCFV(
-            id=doc.id,
-            title=doc.title,
-            parent_id=doc.parent_id,
-            document_type_id=type_id,
-            custom_fields=[],
-        )
-        results.append(item)
-
-    return results
-
-
-def get_docs_by_type(
-    session: Session,
-    document_type_id: uuid.UUID,
-    page_number: int = 1,
-    page_size: int = 300,
-) -> list[models.DocumentCFV]:
-
-    cf_count = document_type_cf_count(session, document_type_id=document_type_id)
-
-    if cf_count == 0:
-        return get_docs_by_type_no_cf(
-            session,
-            type_id=document_type_id,
-            limit=page_size,
-            offset=(page_number - 1) * page_size,
-        )
-
-    stmt = select_docs_by_type(
-        document_type_id=document_type_id,
-        limit=cf_count * page_size,
-        offset=cf_count * (page_number - 1) * page_size,
-    )
-    rows = session.execute(stmt)
-
-    ordered_doc_cfvs = OrderedDocumentCFV()
-    for row in rows:
-        entry = models.DocumentCFVRow(
-            title=row.title,
-            doc_id=row.doc_id,
-            parent_id=row.parent_id,
-            document_type_id=row.document_type_id,
-            cf_name=row.cf_name,
-            cf_type=row.cf_type,
-            cf_value=row.cf_value,
-        )
-        ordered_doc_cfvs.add(entry)
-
-    return list(ordered_doc_cfvs)
-
-
 def get_document_type(session: Session, document_type_id: uuid.UUID) -> DocumentType:
     stmt = select(DocumentType).where(DocumentType.id == document_type_id)
     db_item = session.scalars(stmt).unique().one()
@@ -207,289 +56,175 @@ def get_path_template(session: Session, document_id: uuid.UUID) -> str:
     return path_template
 
 
-def select_cf_by_document_id(document_id: uuid.UUID) -> Select:
-    stmt = (
-        select(
-            CustomField.id, CustomField.name, CustomField.type, CustomField.extra_data
-        )
-        .select_from(Document)
-        .join(
-            DocumentTypeCustomField,
-            DocumentTypeCustomField.document_type_id == Document.document_type_id,
-        )
-        .join(CustomField, CustomField.id == DocumentTypeCustomField.custom_field_id)
-    ).where(Document.id == document_id)
+def get_document_context(session: Session, document_id: uuid.UUID) -> Context:
+    """Build context for path template evaluation.
 
-    return stmt
-
-
-def select_doc_cfv(document_id: uuid.UUID) -> Select:
-    """Returns SqlAlchemy selector for document custom field values"""
-    cf = select_cf_by_document_id(document_id).subquery("cf")
-    cfv = aliased(CustomFieldValue, name="cfv")
-    assoc = aliased(DocumentTypeCustomField, name="assoc")
-    doc = aliased(Document, name="doc")
-
-    stmt = (
-        select(
-            doc.id.label("doc_id"),
-            doc.document_type_id,
-            cf.c.name.label("cf_name"),
-            cf.c.extra_data.label("cf_extra_data"),
-            cf.c.type.label("cf_type"),
-            cf.c.id.label("cf_id"),
-            cfv.id.label("cfv_id"),
-            case(
-                (cf.c.type == "monetary", func.cast(cfv.value_monetary, VARCHAR)),
-                (cf.c.type == "text", func.cast(cfv.value_text, VARCHAR)),
-                (
-                    cf.c.type == "date",
-                    func.substr(func.cast(cfv.value_date, VARCHAR), 0, DATE_LEN),
-                ),
-                (cf.c.type == "boolean", func.cast(cfv.value_boolean, VARCHAR)),
-            ).label("cf_value"),
-        )
-        .select_from(doc)
-        .join(assoc, assoc.document_type_id == doc.document_type_id)
-        .join(cf, cf.c.id == assoc.custom_field_id)
-        .join(
-            cfv,
-            (cfv.field_id == cf.c.id) & (cfv.document_id == document_id),
-            isouter=True,
-        )
-        .where(doc.id == document_id)
+    Fetches document and its latest version in a single query.
+    """
+    latest_version_subq = (
+        select(DocumentVersion.id)
+        .where(DocumentVersion.document_id == document_id)
+        .order_by(DocumentVersion.number.desc())
+        .limit(1)
+        .scalar_subquery()
     )
 
-    return stmt
+    stmt = (
+        select(Document, DocumentVersion)
+        .join(DocumentVersion, DocumentVersion.document_id == Document.id)
+        .where(Document.id == document_id)
+        .where(DocumentVersion.id == latest_version_subq)
+    )
+
+    doc, latest_version = session.execute(stmt).one()
+
+    return Context(
+        id=document_id,
+        title=doc.title,
+        file_name=latest_version.file_name,
+        category=doc.document_type.name if doc.document_type else "",
+        year=latest_version.created_at.year,
+        month=latest_version.created_at.month,
+        day=latest_version.created_at.day,
+    )
 
 
-def get_doc_cfv(session: Session, document_id: uuid.UUID) -> list[models.CFV]:
-    stmt = select_doc_cfv(document_id)
-    result = []
-    for row in session.execute(stmt):
-        if row.cf_type == "date":
-            value = str2date(row.cf_value)
-        else:
-            value = row.cf_value
-
-        result.append(
-            models.CFV(
-                document_id=row.doc_id,
-                document_type_id=row.document_type_id,
-                custom_field_id=row.cf_id,
-                name=row.cf_name,
-                type=row.cf_type,
-                extra_data=row.cf_extra_data,
-                custom_field_value_id=row.cfv_id,
-                value=value,
-            )
-        )
-
-    return result
-
-
-def get_document(session: Session, document_id: uuid.UUID) -> Document:
-    stmt = select(Document).where(Document.id == document_id)
-
+def get_node_ownership(session: Session, node_id: uuid.UUID) -> Ownership:
+    """Get ownership record for a node (document or folder)."""
+    stmt = select(Ownership).where(
+        Ownership.resource_type == "node",
+        Ownership.resource_id == node_id,
+    )
     return session.execute(stmt).scalars().one()
 
 
-def get_doc_ctx(session: Session, document_id: uuid.UUID) -> DocumentContext:
-    cf = get_doc_cfv(session, document_id)
-    custom_fields = [CField(name=i.name, value=i.value) for i in cf]
-    doc = get_document(session, document_id)
-
-    return DocumentContext(title=doc.title, id=document_id, custom_fields=custom_fields)
-
-
-def str2date(value: str | None) -> Optional[datetime.date]:
-    """Convert incoming user string to datetime.date"""
-    # 10 = 4 Y chars +  1 "-" char + 2 M chars + 1 "-" char + 2 D chars
-    if value is None:
-        return None
-
-    DATE_LEN = 10
-    stripped_value = value.strip()
-    if len(stripped_value) == 0:
-        return None
-
-    if len(stripped_value) < DATE_LEN and len(stripped_value) > 0:
-        raise ValueError(
-            f"{stripped_value} expected to have at least {DATE_LEN} characters"
-        )
-
-    return datetime.strptime(
-        value[:DATE_LEN],
-        INCOMING_DATE_FORMAT,
-    ).date()
-
-
-def update_doc_cfv(
-    session: Session,
-    document_id: uuid.UUID,
-    custom_fields: dict,
-):
-    """
-    Update document's custom field values
-    """
-    items = get_doc_cfv(session, document_id=document_id)
-    insert_values = []
-    update_values = []
-
-    stmt = (
-        select(CustomField.name)
-        .select_from(CustomFieldValue)
-        .join(CustomField)
-        .where(CustomFieldValue.document_id == document_id)
-    )
-    existing_cf_name = [row[0] for row in session.execute(stmt).all()]
-
-    for item in items:
-        if item.name not in custom_fields.keys():
-            continue
-
-        if item.name not in existing_cf_name:
-            # prepare insert values
-            v = dict(
-                id=uuid.uuid4(),
-                document_id=item.document_id,
-                field_id=item.custom_field_id,
-            )
-            if item.type.value == "date":
-                v[f"value_{item.type.value}"] = str2date(custom_fields[item.name])
-            else:
-                v[f"value_{item.type.value}"] = custom_fields[item.name]
-            insert_values.append(v)
-        else:
-            # prepare update values
-            v = dict(id=item.custom_field_value_id)
-            if item.type == "date":
-                v[f"value_{item.type.value}"] = str2date(custom_fields[item.name])
-            else:
-                v[f"value_{item.type.value}"] = custom_fields[item.name]
-            update_values.append(v)
-
-    if len(insert_values) > 0:
-        session.execute(insert(CustomFieldValue), insert_values)
-
-    if len(update_values) > 0:
-        session.execute(update(CustomFieldValue), update_values)
-
-    session.commit()
-
-    return items
-
-
-def get_home(
-    session: Session,
-    user_id: uuid.UUID | None = None,
-    group_id: uuid.UUID | None = None,
-) -> Folder:
-
-    if group_id is not None:
-        stmt = select(Group).where(Group.id == group_id)
-        group = session.execute(stmt).scalars().one()
-        home_id = group.home_folder_id
+def get_owner_home_folder(session: Session, ownership: Ownership) -> Folder:
+    """Get home folder for an owner (user or group)."""
+    if ownership.owner_type == "group":
+        stmt = select(Group).where(Group.id == ownership.owner_id)
+        owner = session.execute(stmt).scalars().one()
     else:
-        stmt = select(User).where(User.id == user_id)
-        user = session.execute(stmt).scalars().one()
-        home_id = user.home_folder_id
+        stmt = select(User).where(User.id == ownership.owner_id)
+        owner = session.execute(stmt).scalars().one()
 
-    stmt = select(Folder).where(Folder.id == home_id)
-    home = session.execute(stmt).scalars().one()
-
-    return home
+    stmt = select(Folder).where(Folder.id == owner.home_folder_id)
+    return session.execute(stmt).scalars().one()
 
 
-def mkdir_node(
+def get_or_create_folder(
     session: Session,
-    path: PurePath,
+    title: str,
     parent: Folder,
-    user_id: uuid.UUID | None = None,
-    group_id: uuid.UUID | None = None,
-):
-    if path in [PurePath("."), PurePath("/"), PurePath("home")]:
-        return parent
-
-    if path.name in ["home", ".home"]:
-        return parent
-
-    folder = (
-        session.execute(
-            select(Folder).where(
-                Folder.parent_id == parent.id,
-                Folder.title == path.name,
-            )
-        )
-        .scalars()
-        .one_or_none()
+    ownership: Ownership,
+) -> Folder:
+    """Get existing folder or create new one with ownership."""
+    stmt = select(Folder).where(
+        Folder.parent_id == parent.id,
+        Folder.title == title,
     )
+    folder = session.execute(stmt).scalars().one_or_none()
 
-    if folder is None:
-        folder = Folder(
-            id=uuid.uuid4(),
-            title=path.name,
-            parent_id=parent.id,
-            user_id=user_id,
-            group_id=group_id,
-            lang="en",
-            ctype=CTYPE_FOLDER,
-        )
-        session.add(folder)
-        session.commit()
+    if folder is not None:
+        return folder
+
+    folder_id = uuid.uuid4()
+    folder = Folder(
+        id=folder_id,
+        title=title,
+        parent_id=parent.id,
+        lang="en",
+        ctype="folder",
+    )
+    session.add(folder)
+
+    folder_ownership = Ownership(
+        owner_type=ownership.owner_type,
+        owner_id=ownership.owner_id,
+        resource_type="node",
+        resource_id=folder_id,
+    )
+    session.add(folder_ownership)
+    session.commit()
 
     return folder
 
 
-def mkdir(
-    session: Session,
-    path: str,
-    user_id: uuid.UUID | None = None,
-    group_id: uuid.UUID | None = None,
-) -> Folder:
-    """makes all node folders specified in path
+def mkdir(session: Session, path: str, ownership: Ownership) -> Folder:
+    """Create folder hierarchy from path.
 
-    It is assumed that Top-most folder is `/home/` folder.
-    If path does not start with /home/
-    it will implicitly assume '/home/' already exists and put
-    created nodes under that folder.
-    E.g.
+    Creates all folders in the path under the owner's home folder.
+    If path ends with '/', all segments are treated as folders.
+    Otherwise, the last segment is treated as a filename and excluded.
 
-    mkdir('/My Documents/Here/invoice.pdf', 'uuid1') will
-    create folders 'My Documents` and put it in uuid1 user (or group, depending
-    on who owns the document) home folder i.e.
-    existing /home/ folder belonging to user/group with uuid1.
-    Then it will create folder `Here` and put it under /home/My Documents/
-    of the user/group `uuid1`.
+    Example:
+        mkdir('/Invoices/2025/', ownership) creates:
+        /home/Invoices/2025/
 
-    If path is not absolute, it will be considered relative to user/group's home folder
+        mkdir('/Invoices/2025/invoice.pdf', ownership) creates:
+        /home/Invoices/2025/
     """
-
-    parent = get_home(session, user_id=user_id, group_id=group_id)
+    parent = get_owner_home_folder(session, ownership)
 
     stripped_path = path.strip()
     if stripped_path.endswith("/"):
-        # Last part of the path is a folder, include it as parent
-        parents = [PurePath(stripped_path), *PurePath(stripped_path).parents]
+        path_parts = [PurePath(stripped_path), *PurePath(stripped_path).parents]
     else:
-        parents = PurePath(stripped_path).parents
+        path_parts = PurePath(stripped_path).parents
 
-    for node in reversed(parents):
-        parent = mkdir_node(
-            session, node, parent=parent, user_id=user_id, group_id=group_id
+    skip_names = {".", "/", "home", ".home"}
+
+    for part in reversed(path_parts):
+        if part == PurePath(".") or part == PurePath("/"):
+            continue
+        if part.name in skip_names:
+            continue
+
+        parent = get_or_create_folder(
+            session,
+            title=part.name,
+            parent=parent,
+            ownership=ownership,
         )
 
     return parent
 
 
-def mkdir_target(session: Session, document_id: uuid.UUID) -> Tuple[str, Folder]:
-    doc = get_doc_ctx(session, document_id)
-    path_template = get_path_template(session, document_id)
-    ev_path = get_evaluated_path(doc, path_template)
-    stmt = select(Document).where(Document.id == document_id)
-    doc = session.execute(stmt).scalars().one()
-    target_folder = mkdir(
-        session, path=ev_path, user_id=doc.user_id, group_id=doc.group_id
-    )
+def create_target_folder(
+    session: Session, document_id: uuid.UUID
+) -> Tuple[str, Folder]:
+    """Create target folder structure for a document.
 
-    return ev_path, target_folder
+    Evaluates the document's path template and creates the necessary
+    folder hierarchy with the same ownership as the document.
+
+    Returns:
+        Tuple of (evaluated_path, target_folder)
+    """
+    context = get_document_context(session, document_id)
+    path_template = get_path_template(session, document_id)
+    evaluated_path = get_evaluated_path(context, path_template)
+
+    ownership = get_node_ownership(session, document_id)
+    target_folder = mkdir(session, path=evaluated_path, ownership=ownership)
+
+    return evaluated_path, target_folder
+
+
+def move_document(session: Session, document_id: uuid.UUID) -> None:
+    """Move document to its evaluated path template location.
+
+    Evaluates the document's path template based on its document type,
+    creates the target folder structure, and moves the document.
+    The document title may be updated if the path template specifies a filename.
+    """
+    stmt = select(Document).where(Document.id == document_id)
+    document = session.execute(stmt).scalars().one()
+
+    evaluated_path, target_folder = create_target_folder(session, document_id)
+
+    stripped_path = evaluated_path.strip()
+    if not stripped_path.endswith("/"):
+        document.title = PurePath(stripped_path).name
+
+    document.parent_id = target_folder.id
+    session.commit()

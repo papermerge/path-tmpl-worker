@@ -1,29 +1,23 @@
 from .base import Base
 from .engine import get_engine
 from .api import (
-    get_doc_ctx,
-    get_doc_cfv,
-    update_doc_cfv,
-    get_document,
-    mkdir_target,
+    get_document_context,
+    create_target_folder,
     document_type_cf_count,
     get_document_type,
     get_docs_count_by_type,
-    get_docs_by_type,
     mkdir,
+    move_document,
 )
 
 __all__ = [
     "Base",
     "get_engine",
-    "get_doc_ctx",
-    "get_doc_cfv",
-    "update_doc_cfv",
-    "get_document",
-    "mkdir_target",
+    "get_document_context",
+    "create_target_folder",
     "document_type_cf_count",
     "get_document_type",
     "get_docs_count_by_type",
-    "get_docs_by_type",
+    "move_document",
     "mkdir",
 ]

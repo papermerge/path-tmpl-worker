@@ -2,7 +2,7 @@ import yaml
 from pathlib import Path
 from logging.config import dictConfig
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from path_tmpl_worker.constants import INCOMING_DATE_FORMAT
@@ -39,3 +39,8 @@ def str2date(value: str | None) -> Optional[datetime.date]:
         value[:DATE_LEN],
         INCOMING_DATE_FORMAT,
     ).date()
+
+
+def utc_now():
+    """Returns current time in UTC - always use for database timestamps"""
+    return datetime.now(timezone.utc)

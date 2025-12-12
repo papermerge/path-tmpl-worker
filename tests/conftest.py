@@ -1,11 +1,10 @@
 import uuid
 import pytest
 
-
 from path_tmpl_worker.db import Base
 from path_tmpl_worker.db.engine import engine, Session
 from path_tmpl_worker.db import orm
-from path_tmpl_worker import models, constants
+from path_tmpl_worker import constants, types
 from path_tmpl_worker.config import get_settings
 
 config = get_settings()
@@ -21,37 +20,28 @@ def db_session():
 
 
 @pytest.fixture
-def make_custom_field(db_session: Session):
-    def _make_custom_field(name: str, type: models.CustomFieldType):
-        cfield = orm.CustomField(
-            id=uuid.uuid4(),
-            name=name,
-            type=type,
-        )
-        db_session.add(cfield)
-        db_session.commit()
+def make_document_type(db_session: Session):
 
-        return cfield
-
-    return _make_custom_field
-
-
-@pytest.fixture
-def make_document_type_groceries(db_session: Session, make_custom_field):
-
-    def _maker(title: str, user_id: uuid.UUID, path_template: str | None = None):
-        cf1 = make_custom_field(name="Shop", type=models.CustomFieldType.text)
-        cf2 = make_custom_field(name="Total", type=models.CustomFieldType.monetary)
-        cf3 = make_custom_field(name="EffectiveDate", type=models.CustomFieldType.date)
-
+    def _maker(
+        name: str,
+        ownership: orm.Ownership,
+        path_template: str | None = None,
+    ):
+        dtype_id = uuid.uuid4()
         dtype = orm.DocumentType(
-            id=uuid.uuid4(),
-            name=title,
-            user_id=user_id,
-            custom_fields=[cf1, cf2, cf3],
+            id=dtype_id,
+            name=name,
             path_template=path_template,
         )
         db_session.add(dtype)
+
+        dtype_ownership = orm.Ownership(
+            owner_type=ownership.owner_type,
+            owner_id=ownership.owner_id,
+            resource_type="document_type",
+            resource_id=dtype_id,
+        )
+        db_session.add(dtype_ownership)
         db_session.commit()
 
         return dtype
@@ -60,35 +50,33 @@ def make_document_type_groceries(db_session: Session, make_custom_field):
 
 
 @pytest.fixture()
-def make_receipt(db_session, make_user, make_document_type_groceries):
+def make_document(db_session: Session):
 
     def _maker(
         title: str,
-        path_template: str | None = None,
-        dtype: orm.DocumentType | None = None,
-        user: orm.User | None = None,
+        parent: orm.Folder,
+        ownership: orm.Ownership,
+        document_type: orm.DocumentType | None = None,
+        lang: str = "de",
     ):
-        if user is None:
-            user = make_user("john")
-
-        if dtype is None:
-            dtype = make_document_type_groceries(
-                title="Groceries", path_template=path_template, user_id=user.id
-            )
-
         doc_id = uuid.uuid4()
         doc = orm.Document(
             id=doc_id,
             ctype="document",
-            document_type=dtype,
             title=title,
-            user_id=user.id,
-            lang="de",
-            parent_id=user.home_folder_id,
+            lang=lang,
+            parent_id=parent.id,
+            document_type=document_type,
         )
-
         db_session.add(doc)
 
+        doc_ownership = orm.Ownership(
+            owner_type=ownership.owner_type,
+            owner_id=ownership.owner_id,
+            resource_type="node",
+            resource_id=doc_id,
+        )
+        db_session.add(doc_ownership)
         db_session.commit()
 
         return doc
@@ -97,25 +85,32 @@ def make_receipt(db_session, make_user, make_document_type_groceries):
 
 
 @pytest.fixture()
-def make_document(db_session, make_document_type_groceries):
+def make_document_version(db_session: Session):
 
-    def _maker(title: str, user_id: uuid.UUID):
-        doc_id = uuid.uuid4()
-        doc = orm.Document(
-            id=doc_id, ctype="document", title=title, user_id=user_id, lang="de"
+    def _maker(
+        document: orm.Document,
+        file_name: str,
+        number: int = 1,
+        size: int = 0,
+    ):
+        version = orm.DocumentVersion(
+            id=uuid.uuid4(),
+            document_id=document.id,
+            file_name=file_name,
+            number=number,
+            size=size,
         )
-
-        db_session.add(doc)
-
+        db_session.add(version)
         db_session.commit()
 
-        return doc
+        return version
 
     return _maker
 
 
 @pytest.fixture()
 def make_user(db_session: Session):
+
     def _maker(username: str, is_superuser: bool = True):
         user_id = uuid.uuid4()
         home_id = uuid.uuid4()
@@ -131,26 +126,59 @@ def make_user(db_session: Session):
             is_active=True,
             password="pwd",
         )
-        db_inbox = orm.Folder(
-            id=inbox_id,
-            title=constants.INBOX_TITLE,
-            ctype=constants.CTYPE_FOLDER,
-            lang="de",
-            user_id=user_id,
-        )
+        db_session.add(db_user)
+
         db_home = orm.Folder(
             id=home_id,
             title=constants.HOME_TITLE,
             ctype=constants.CTYPE_FOLDER,
             lang="de",
-            user_id=user_id,
+        )
+        db_session.add(db_home)
+
+        db_inbox = orm.Folder(
+            id=inbox_id,
+            title=constants.INBOX_TITLE,
+            ctype=constants.CTYPE_FOLDER,
+            lang="de",
+            parent_id=home_id,
         )
         db_session.add(db_inbox)
-        db_session.add(db_home)
-        db_session.add(db_user)
-        db_session.commit()
-        db_user.home_folder_id = db_home.id
-        db_user.inbox_folder_id = db_inbox.id
+
+        # Create ownership for home and inbox folders
+        home_ownership = orm.Ownership(
+            owner_type="user",
+            owner_id=user_id,
+            resource_type="node",
+            resource_id=home_id,
+        )
+        db_session.add(home_ownership)
+
+        inbox_ownership = orm.Ownership(
+            owner_type="user",
+            owner_id=user_id,
+            resource_type="node",
+            resource_id=inbox_id,
+        )
+        db_session.add(inbox_ownership)
+
+        # Create special folder records
+        home_special = orm.SpecialFolder(
+            owner_type="user",
+            owner_id=user_id,
+            folder_type=types.FolderType.HOME,
+            folder_id=home_id,
+        )
+        db_session.add(home_special)
+
+        inbox_special = orm.SpecialFolder(
+            owner_type="user",
+            owner_id=user_id,
+            folder_type=types.FolderType.INBOX,
+            folder_id=inbox_id,
+        )
+        db_session.add(inbox_special)
+
         db_session.commit()
 
         return db_user
@@ -159,5 +187,88 @@ def make_user(db_session: Session):
 
 
 @pytest.fixture()
+def make_group(db_session: Session):
+
+    def _maker(name: str):
+        group_id = uuid.uuid4()
+        home_id = uuid.uuid4()
+        inbox_id = uuid.uuid4()
+
+        db_group = orm.Group(
+            id=group_id,
+            name=name,
+        )
+        db_session.add(db_group)
+
+        db_home = orm.Folder(
+            id=home_id,
+            title=constants.HOME_TITLE,
+            ctype=constants.CTYPE_FOLDER,
+            lang="de",
+        )
+        db_session.add(db_home)
+
+        db_inbox = orm.Folder(
+            id=inbox_id,
+            title=constants.INBOX_TITLE,
+            ctype=constants.CTYPE_FOLDER,
+            lang="de",
+            parent_id=home_id,
+        )
+        db_session.add(db_inbox)
+
+        # Create ownership for home and inbox folders
+        home_ownership = orm.Ownership(
+            owner_type="group",
+            owner_id=group_id,
+            resource_type="node",
+            resource_id=home_id,
+        )
+        db_session.add(home_ownership)
+
+        inbox_ownership = orm.Ownership(
+            owner_type="group",
+            owner_id=group_id,
+            resource_type="node",
+            resource_id=inbox_id,
+        )
+        db_session.add(inbox_ownership)
+
+        # Create special folder records
+        home_special = orm.SpecialFolder(
+            owner_type="group",
+            owner_id=group_id,
+            folder_type=types.FolderType.HOME,
+            folder_id=home_id,
+        )
+        db_session.add(home_special)
+
+        inbox_special = orm.SpecialFolder(
+            owner_type="group",
+            owner_id=group_id,
+            folder_type=types.FolderType.INBOX,
+            folder_id=inbox_id,
+        )
+        db_session.add(inbox_special)
+
+        db_session.commit()
+
+        return db_group
+
+    return _maker
+
+
+@pytest.fixture()
 def user(make_user) -> orm.User:
     return make_user(username="random")
+
+
+@pytest.fixture()
+def user_ownership(user: orm.User) -> orm.Ownership:
+    """Helper to create an Ownership-like object for a user."""
+    return orm.Ownership(
+        owner_type="user",
+        owner_id=user.id,
+        resource_type="node",  # placeholder, will be set per resource
+        resource_id=user.id,  # placeholder
+    )
