@@ -1,48 +1,22 @@
 import uuid
 from pathlib import PurePath
-from sqlalchemy import select, func
-from sqlalchemy.orm import Session
-from typing import Tuple
+from typing import List, Tuple
 
-from pathtmpl import get_evaluated_path, Context
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from pathtmpl import Context, get_evaluated_path
 
 from path_tmpl_worker.db.orm import (
     Document,
-    User,
-    Folder,
-    DocumentType,
-    Group,
     DocumentVersion,
+    Folder,
+    Group,
     Ownership,
+    User,
+    DocumentType,
 )
-
-
-# len(2024-11-02) + 1
-DATE_LEN = 11
-
-
-def document_type_cf_count(session: Session, document_type_id: uuid.UUID):
-    """count number of custom fields associated to document type"""
-    stmt = select(DocumentType).where(DocumentType.id == document_type_id)
-    dtype = session.scalars(stmt).one()
-    return len(dtype.custom_fields)
-
-
-def get_docs_count_by_type(session: Session, type_id: uuid.UUID):
-    """Returns number of documents of specific document type"""
-    stmt = (
-        select(func.count())
-        .select_from(Document)
-        .where(Document.document_type_id == type_id)
-    )
-
-    return session.scalars(stmt).one()
-
-
-def get_document_type(session: Session, document_type_id: uuid.UUID) -> DocumentType:
-    stmt = select(DocumentType).where(DocumentType.id == document_type_id)
-    db_item = session.scalars(stmt).unique().one()
-    return db_item
+from path_tmpl_worker.types import OwnerType
 
 
 def get_path_template(session: Session, document_id: uuid.UUID) -> str:
@@ -100,7 +74,7 @@ def get_node_ownership(session: Session, node_id: uuid.UUID) -> Ownership:
 
 def get_owner_home_folder(session: Session, ownership: Ownership) -> Folder:
     """Get home folder for an owner (user or group)."""
-    if ownership.owner_type == "group":
+    if ownership.owner_type == OwnerType.GROUP:
         stmt = select(Group).where(Group.id == ownership.owner_id)
         owner = session.execute(stmt).scalars().one()
     else:
@@ -228,3 +202,46 @@ def move_document(session: Session, document_id: uuid.UUID) -> None:
 
     document.parent_id = target_folder.id
     session.commit()
+
+
+def get_ancestors(
+    session: Session, node_id: uuid.UUID, include_self: bool = True
+) -> List[Tuple[uuid.UUID, str]]:
+    """Returns all ancestors of the node, ordered from root to node."""
+    from path_tmpl_worker.db.orm import Node
+
+    # Base case: the starting node
+    base = (
+        select(
+            Node.id,
+            Node.title,
+            Node.parent_id,
+        )
+        .where(Node.id == node_id)
+        .cte(name="tree", recursive=True)
+    )
+
+    # Recursive case: join with parent
+    tree_alias = base.alias()
+    recursive = select(
+        Node.id,
+        Node.title,
+        Node.parent_id,
+    ).join(tree_alias, Node.id == tree_alias.c.parent_id)
+
+    # Combine base and recursive
+    cte = base.union_all(recursive)
+
+    # Final query
+    if include_self:
+        stmt = select(cte.c.id, cte.c.title)
+    else:
+        stmt = select(cte.c.id, cte.c.title).where(cte.c.id != node_id)
+
+    result = session.execute(stmt)
+
+    # Build list and reverse to get root-to-node order
+    items = [(row.id, row.title) for row in result]
+    items.reverse()
+
+    return items
