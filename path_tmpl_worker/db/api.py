@@ -257,6 +257,9 @@ def move_documents(session: Session, document_type_id: uuid.UUID) -> int:
     3. Create target folder structure with same ownership as document
     4. Move document to target folder
 
+    Optimized to create each unique folder structure only once,
+    regardless of how many documents share that path.
+
     Returns:
         Number of documents moved
     """
@@ -301,6 +304,11 @@ def move_documents(session: Session, document_type_id: uuid.UUID) -> int:
     if not rows:
         return 0
 
+    # Phase 1: Evaluate all paths and group by unique (path, owner_id)
+    path_to_docs: dict[tuple[str, uuid.UUID], list[tuple[Document, str, Ownership]]] = (
+        {}
+    )
+
     for doc, latest_version, ownership in rows:
         context = Context(
             id=doc.id,
@@ -311,15 +319,30 @@ def move_documents(session: Session, document_type_id: uuid.UUID) -> int:
             month=latest_version.created_at.month,
             day=latest_version.created_at.day,
         )
-
         evaluated_path = get_evaluated_path(context, document_type.path_template)
-        target_folder = mkdir(session, path=evaluated_path, ownership=ownership)
 
-        stripped_path = evaluated_path.strip()
-        if not stripped_path.endswith("/"):
-            doc.title = PurePath(stripped_path).name
+        key = (evaluated_path, ownership.owner_id)
+        if key not in path_to_docs:
+            path_to_docs[key] = []
+        path_to_docs[key].append((doc, evaluated_path, ownership))
 
-        doc.parent_id = target_folder.id
+    # Phase 2: Create each unique folder structure ONCE
+    path_to_folder: dict[tuple[str, uuid.UUID], Folder] = {}
+
+    for (path, owner_id), docs_info in path_to_docs.items():
+        ownership = docs_info[0][2]  # All docs in this group share ownership
+        target_folder = mkdir(session, path=path, ownership=ownership)
+        path_to_folder[(path, owner_id)] = target_folder
+
+    # Phase 3: Update all documents
+    for (path, owner_id), docs_info in path_to_docs.items():
+        target_folder = path_to_folder[(path, owner_id)]
+        stripped_path = path.strip()
+
+        for doc, evaluated_path, _ in docs_info:
+            if not stripped_path.endswith("/"):
+                doc.title = PurePath(stripped_path).name
+            doc.parent_id = target_folder.id
 
     session.commit()
 
