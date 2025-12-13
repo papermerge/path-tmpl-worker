@@ -1,4 +1,4 @@
-name: Build Image
+name: Build Docker Image
 
 on:
   push:
@@ -36,3 +36,36 @@ jobs:
           tags: papermerge/path-tmpl-worker:${{ github.ref_name }}
           file: docker/Dockerfile
           platforms: linux/amd64
+      - name: Extract changelog entry
+        id: changelog
+        if: "!contains(github.ref_name, 'rc') && !contains(github.ref_name, 'a') && !contains(github.ref_name, 'b')"
+        run: |
+          VERSION="${{ github.ref_name }}"
+          # Extract the section for this version from changelog.md
+          # This awk script finds the section starting with ## [VERSION] and stops at the next ## section
+          ENTRY=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") {
+                found=1
+                next
+              }
+            }
+            found { print }
+          ' changelog.md)
+
+          # Save to output and file
+          echo "$ENTRY" > release_notes.md
+          echo "Release notes extracted for version $VERSION"
+          cat release_notes.md
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: "!contains(github.ref_name, 'rc') && !contains(github.ref_name, 'a') && !contains(github.ref_name, 'b')"
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
