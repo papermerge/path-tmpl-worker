@@ -2,7 +2,6 @@ from sqlalchemy import select
 
 from path_tmpl_worker import db
 from path_tmpl_worker.db import orm
-from .utils import get_ancestors
 
 
 def test_move_one_document(db_session, make_receipt):
@@ -19,6 +18,6 @@ def test_move_one_document(db_session, make_receipt):
     # title did not change
     assert refreshed_doc.title == "bon.pdf"
 
-    actual_breadcrumb = "/".join([a[1] for a in get_ancestors(db_session, doc.id)])
+    actual_breadcrumb = "/".join([a[1] for a in db.get_ancestors(db_session, doc.id)])
     actual_breadcrumb = "/" + actual_breadcrumb
     assert actual_breadcrumb == "/home/My Documents/Receipts/bon.pdf"

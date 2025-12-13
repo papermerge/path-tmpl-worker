@@ -23,7 +23,7 @@ dependencies = [
 pathtmpl = "path_tmpl_worker.cli.main:app"
 
 [project.optional-dependencies]
-dev = ["pytest", "taskipy"]
+dev = ["pytest", "taskipy", "freezegun"]
 
 [tool.taskipy.tasks]
 worker = "celery -A path_tmpl_worker.celery_app worker -E -c 4 -Q path_tmpl"
