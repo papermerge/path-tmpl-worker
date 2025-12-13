@@ -16,7 +16,7 @@ dependencies = [
     "celery[redis]",
     "pyyaml",
     "redis",
-    "psycopg[binary]"
+     "psycopg2-binary"
 ]
 
 [project.scripts]
