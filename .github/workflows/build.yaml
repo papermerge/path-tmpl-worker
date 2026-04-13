@@ -59,7 +59,7 @@ jobs:
           echo "Release notes extracted for version $VERSION"
           cat release_notes.md
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: "!contains(github.ref_name, 'rc') && !contains(github.ref_name, 'a') && !contains(github.ref_name, 'b')"
         with:
           tag_name: ${{ github.ref_name }}
